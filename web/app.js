@@ -111,11 +111,56 @@ function closeAllHealthPopovers() {
   document.querySelectorAll(".u-health-popover").forEach((el) => {
     el.style.display = "none";
   });
+  const filterMenu = document.getElementById("menu-health-filter");
+  if (filterMenu) filterMenu.style.display = "none";
 }
 
 document.addEventListener("click", () => {
   closeAllHealthPopovers();
 });
+
+function toggleHealthFilterDropdown(event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById("menu-health-filter");
+  if (!menu) return;
+  const isShown = menu.style.display === "block";
+  closeAllHealthPopovers();
+  if (!isShown) menu.style.display = "block";
+}
+
+function selectHealthFilterOption(healthVal, labelText, dotClass) {
+  closeAllHealthPopovers();
+  state.healthFilter = healthVal;
+
+  const textEl = document.getElementById("filter-current-text");
+  const dotEl = document.getElementById("filter-current-dot");
+  const btnEl = document.getElementById("btn-health-filter-label");
+  if (textEl) textEl.textContent = healthVal === "All" ? "全部状态" : labelText;
+  if (dotEl) {
+    dotEl.className = "badge-dot " + (dotClass || (healthVal === "All" ? "" : "dot-available"));
+    dotEl.style.display = healthVal === "All" ? "none" : "inline-block";
+  }
+  if (btnEl) {
+    btnEl.classList.toggle("active", healthVal !== "All");
+  }
+
+  document.querySelectorAll("#menu-health-filter .dropdown-opt").forEach((opt) => {
+    opt.classList.toggle("active", opt.dataset.health === healthVal);
+  });
+
+  const hMeta = getHealthMeta(healthVal);
+  document.querySelectorAll(".stat-chip").forEach((chip) => {
+    chip.classList.toggle("active", chip.classList.contains(`chip-${hMeta.key}`) && healthVal !== "All");
+  });
+
+  loadDashboard();
+}
+
+function setHealthFilter(health) {
+  const hMeta = getHealthMeta(health);
+  const label = health === "All" ? "全部状态" : hMeta.label;
+  selectHealthFilterOption(health, label, hMeta.dotClass);
+}
 
 async function onQuickSelectHealth(accountId, nextStatus) {
   closeAllHealthPopovers();
@@ -130,14 +175,6 @@ async function onQuickSelectHealth(accountId, nextStatus) {
   } catch (err) {
     showToast("状态更新异常: " + err.message);
   }
-}
-
-function setHealthFilter(health) {
-  state.healthFilter = health;
-  document.querySelectorAll("#health-tabs .seg-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.health === health);
-  });
-  loadDashboard();
 }
 
 function escapeHtml(str) {
@@ -249,15 +286,15 @@ function renderCardItem(item, remaining) {
 
   const isPwdModified = !!item.password_modified;
   const pwdFlagHtml = `<button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="点击切换密码是否已修改标记">
-      ${isPwdModified ? "密码已改 ✓" : "初始密码"}
+      ${isPwdModified ? "🔑 密码已改 ✓" : "🔑 初始密码"}
     </button>`;
 
   const is2faModified = !!item.twofa_modified;
   const twofaFlagHtml = item.secret_key
     ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})" title="点击切换 2FA 是否已修改标记">
-        ${is2faModified ? "2FA已改 ✓" : "初始2FA"}
+        ${is2faModified ? "🛡️ 2FA已改 ✓" : "🛡️ 初始2FA"}
       </button>`
-    : "";
+    : `<span class="u-2fa-flag none" title="未配置 2FA 动态秘钥">🛡️ 无2FA</span>`;
 
   const fpInfo = getFpSummary(item);
   const nodePillText = fpInfo.proxyNode
@@ -417,11 +454,21 @@ function renderCardItem(item, remaining) {
         </div>
       </div>
 
-      <!-- Line 2: Dedicated Status Row (状态与安全标记分行独立展示，不再挤占设备码) -->
-      <div class="u-status-row">
-        <div class="u-status-left">
+      <!-- Line 2: Security Flags Row (初始密码是否改、2FA是否改独立换行展示) -->
+      <div class="u-sec-row">
+        <div class="u-sec-left">
+          <span class="u-sec-label">安全状态:</span>
           ${pwdFlagHtml}
           ${twofaFlagHtml}
+        </div>
+        <div class="u-sec-right">
+          <span class="u-sec-hint" title="可点击对应徽章快速切换已改/初始标记">点击徽章可标记</span>
+        </div>
+      </div>
+
+      <!-- Line 3: Usage Timeline & Proxy Node Row (时长与绑定节点独立行) -->
+      <div class="u-status-row">
+        <div class="u-status-left">
           <span class="u-usage-badge ${usage.status}">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -560,19 +607,21 @@ function renderTableView(remaining) {
             ${healthBadgeHtml}
           </td>
           <td>
-            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-              <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})">
-                ${isPwdModified ? "密码已改 ✓" : "初始密码"}
+            <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+              <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="点击切换密码是否已修改标记">
+                ${isPwdModified ? "🔑 密码已改 ✓" : "🔑 初始密码"}
               </button>
               ${
                 item.secret_key
-                  ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})">
-                      ${is2faModified ? "2FA已改 ✓" : "初始2FA"}
+                  ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})" title="点击切换 2FA 是否已修改标记">
+                      ${is2faModified ? "🛡️ 2FA已改 ✓" : "🛡️ 初始2FA"}
                     </button>`
-                  : ""
+                  : `<span class="u-2fa-flag none">🛡️ 无2FA</span>`
               }
-              <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
             </div>
+          </td>
+          <td>
+            <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
           </td>
           <td>
             <span class="u-totp-code" id="totp-code-${item.id}" style="font-size:14px;cursor:pointer;" onclick="copyTotpCode(null, ${item.id})">${totpFormatted}</span>
@@ -607,7 +656,8 @@ function renderTableView(remaining) {
           <th>指纹与锁定节点</th>
           <th>账号邮箱</th>
           <th>可用状态</th>
-          <th>安全标记 / 时长</th>
+          <th>安全修改状态</th>
+          <th>使用时长</th>
           <th>动态验证码</th>
           <th>所在设备 / 备注</th>
           <th>快捷操作与防关联浏览器</th>
@@ -1108,6 +1158,13 @@ function setFilterType(type) {
   state.filterType = type;
   document.querySelectorAll("#filter-tabs .seg-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.type === type);
+  });
+  document.querySelectorAll(".stat-group .stat-pill").forEach((pill) => {
+    const text = pill.textContent || "";
+    const isMatched = (type === "All" && text.includes("总计")) ||
+                      (type === "ChatGPT" && text.includes("ChatGPT")) ||
+                      (type === "Google" && text.includes("Google"));
+    pill.classList.toggle("active", isMatched);
   });
   loadDashboard();
 }

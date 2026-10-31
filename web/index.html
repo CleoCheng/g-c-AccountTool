@@ -10,173 +10,194 @@
   <div class="app-shell">
     <!-- Sticky Navigation Wrapper: 固定顶部主菜单和次级筛选菜单 -->
     <div class="sticky-nav">
-      <!-- Top Header & Stats Bar -->
+      <!-- Top Header & High-level Stats -->
       <header class="topbar">
-      <div class="brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        <div class="brand">
+          <div class="brand-logo">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="brand-title">KeyVault 账号管家</h1>
+            <p class="brand-sub">Google &amp; ChatGPT 密钥库</p>
+          </div>
+        </div>
+
+        <!-- Sleek non-overflowing summary stats pills -->
+        <div class="stats-bar" id="topbar-stats">
+          <div class="stat-group">
+            <div class="stat-pill" onclick="setFilterType('All'); setHealthFilter('All')" title="查看全部账号">
+              <span class="stat-label">总计</span>
+              <span class="stat-value" id="stat-total">0</span>
+            </div>
+            <div class="stat-pill" onclick="setFilterType('ChatGPT')" title="筛选 ChatGPT 账号">
+              <span class="stat-dot dot-chatgpt"></span>
+              <span class="stat-label">ChatGPT</span>
+              <span class="stat-value" id="stat-chatgpt">0</span>
+            </div>
+            <div class="stat-pill" onclick="setFilterType('Google')" title="筛选 Google 账号">
+              <span class="stat-dot dot-google"></span>
+              <span class="stat-label">Google</span>
+              <span class="stat-value" id="stat-google">0</span>
+            </div>
+          </div>
+
+          <div class="stat-divider"></div>
+
+          <!-- Quick status chips (compact & 1-click filter) -->
+          <div class="stat-chips-group">
+            <div class="stat-chip chip-available" onclick="setHealthFilter('可用')" title="可用账号数量 (点击筛选)">
+              <span class="stat-dot dot-available"></span>
+              <span class="chip-label">可用</span>
+              <span class="chip-val" id="stat-health-available">0</span>
+            </div>
+            <div class="stat-chip chip-banned" onclick="setHealthFilter('封号')" title="封号账号数量 (点击筛选)">
+              <span class="stat-dot dot-banned"></span>
+              <span class="chip-label">封号</span>
+              <span class="chip-val" id="stat-health-banned">0</span>
+            </div>
+            <div class="stat-chip chip-captcha" onclick="setHealthFilter('人机')" title="人机验证账号数量 (点击筛选)">
+              <span class="stat-dot dot-captcha"></span>
+              <span class="chip-label">人机</span>
+              <span class="chip-val" id="stat-health-captcha">0</span>
+            </div>
+            <div class="stat-chip chip-sms" onclick="setHealthFilter('短信')" title="短信验证账号数量 (点击筛选)">
+              <span class="stat-dot dot-sms"></span>
+              <span class="chip-label">短信</span>
+              <span class="chip-val" id="stat-health-sms">0</span>
+            </div>
+            <div class="stat-chip chip-verify" onclick="setHealthFilter('验证')" title="邮箱/重置验证账号数量 (点击筛选)">
+              <span class="stat-dot dot-verify"></span>
+              <span class="chip-label">验证</span>
+              <span class="chip-val" id="stat-health-verify">0</span>
+            </div>
+            <div class="stat-chip chip-unavailable" onclick="setHealthFilter('不可用')" title="不可用/闲置账号数量 (点击筛选)">
+              <span class="stat-dot dot-unavailable"></span>
+              <span class="chip-label">停用</span>
+              <span class="chip-val" id="stat-health-unavailable">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button class="icon-btn" id="btn-theme" onclick="toggleTheme()" title="切换深色/浅色主题">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
+          <button class="btn btn-secondary" onclick="openExportModal()">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>导出</span>
+          </button>
+          <button class="btn btn-primary" onclick="openAddModal()">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>添加 / 导入</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Toolbar: Single-Line Responsive Controls Bar -->
+      <section class="toolbar">
+        <div class="filter-group">
+          <!-- Platform Filter Tabs -->
+          <div class="segmented" id="filter-tabs">
+            <button class="seg-btn active" data-type="All" onclick="setFilterType('All')">全部平台</button>
+            <button class="seg-btn" data-type="ChatGPT" onclick="setFilterType('ChatGPT')">
+              <span class="badge-dot dot-chatgpt"></span>ChatGPT
+            </button>
+            <button class="seg-btn" data-type="Google" onclick="setFilterType('Google')">
+              <span class="badge-dot dot-google"></span>Google
+            </button>
+          </div>
+
+          <!-- Compact Status Dropdown Filter -->
+          <div class="filter-dropdown-wrap" id="health-filter-dropdown">
+            <button class="filter-select-btn" onclick="toggleHealthFilterDropdown(event)" id="btn-health-filter-label" title="点击按可用状态筛选">
+              <span class="badge-dot dot-available" id="filter-current-dot" style="display: none;"></span>
+              <span id="filter-current-text">全部状态</span>
+              <span class="dropdown-arrow">▾</span>
+            </button>
+            <div class="filter-dropdown-menu" id="menu-health-filter" style="display: none;">
+              <button class="dropdown-opt active" data-health="All" onclick="selectHealthFilterOption('All', '全部状态', '')">
+                <span>全部可用状态</span>
+              </button>
+              <button class="dropdown-opt" data-health="可用" onclick="selectHealthFilterOption('可用', '可用', 'dot-available')">
+                <span class="badge-dot dot-available"></span><span>可用 (正常使用)</span>
+              </button>
+              <button class="dropdown-opt" data-health="封号" onclick="selectHealthFilterOption('封号', '封号', 'dot-banned')">
+                <span class="badge-dot dot-banned"></span><span>封号 (官方封禁)</span>
+              </button>
+              <button class="dropdown-opt" data-health="人机" onclick="selectHealthFilterOption('人机', '人机', 'dot-captcha')">
+                <span class="badge-dot dot-captcha"></span><span>人机 (盾 / 验证码)</span>
+              </button>
+              <button class="dropdown-opt" data-health="短信" onclick="selectHealthFilterOption('短信', '短信', 'dot-sms')">
+                <span class="badge-dot dot-sms"></span><span>短信 (手机验证)</span>
+              </button>
+              <button class="dropdown-opt" data-health="验证" onclick="selectHealthFilterOption('验证', '验证', 'dot-verify')">
+                <span class="badge-dot dot-verify"></span><span>验证 (邮箱/密码)</span>
+              </button>
+              <button class="dropdown-opt" data-health="不可用" onclick="selectHealthFilterOption('不可用', '不可用', 'dot-unavailable')">
+                <span class="badge-dot dot-unavailable"></span><span>不可用 (闲置停用)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search Box (Flex 1) -->
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-        </div>
-        <div>
-          <h1 class="brand-title">KeyVault 账号管家</h1>
-          <p class="brand-sub">Google & ChatGPT 密钥库</p>
-        </div>
-      </div>
-
-      <div class="stats-bar">
-        <div class="stat-pill" onclick="setFilterType('All'); setHealthFilter('All'); setStatusFilter('All')">
-          <span class="stat-label">总计</span>
-          <span class="stat-value" id="stat-total">0</span>
-        </div>
-        <div class="stat-pill" onclick="setFilterType('ChatGPT')">
-          <span class="stat-dot dot-chatgpt"></span>
-          <span class="stat-label">ChatGPT</span>
-          <span class="stat-value" id="stat-chatgpt">0</span>
-        </div>
-        <div class="stat-pill" onclick="setFilterType('Google')">
-          <span class="stat-dot dot-google"></span>
-          <span class="stat-label">Google</span>
-          <span class="stat-value" id="stat-google">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('可用')" title="点击筛选「可用」账号">
-          <span class="stat-dot dot-available"></span>
-          <span class="stat-label">可用</span>
-          <span class="stat-value" id="stat-health-available">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('封号')" title="点击筛选「封号」账号">
-          <span class="stat-dot dot-banned"></span>
-          <span class="stat-label">封号</span>
-          <span class="stat-value" id="stat-health-banned">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('人机')" title="点击筛选「人机验证」账号">
-          <span class="stat-dot dot-captcha"></span>
-          <span class="stat-label">人机</span>
-          <span class="stat-value" id="stat-health-captcha">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('短信')" title="点击筛选「短信验证」账号">
-          <span class="stat-dot dot-sms"></span>
-          <span class="stat-label">短信</span>
-          <span class="stat-value" id="stat-health-sms">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('验证')" title="点击筛选「邮箱/其他验证」账号">
-          <span class="stat-dot dot-verify"></span>
-          <span class="stat-label">验证</span>
-          <span class="stat-value" id="stat-health-verify">0</span>
-        </div>
-        <div class="stat-pill" onclick="setHealthFilter('不可用')" title="点击筛选「不可用」账号">
-          <span class="stat-dot dot-unavailable"></span>
-          <span class="stat-label">不可用</span>
-          <span class="stat-value" id="stat-health-unavailable">0</span>
-        </div>
-      </div>
-
-      <div class="top-actions">
-        <button class="icon-btn" id="btn-theme" onclick="toggleTheme()" title="切换深色/浅色主题">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-        </button>
-        <button class="btn btn-secondary" onclick="openExportModal()">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>导出</span>
-        </button>
-        <button class="btn btn-primary" onclick="openAddModal()">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>添加 / 导入</span>
-        </button>
-      </div>
-    </header>
-
-    <!-- Toolbar: Filters, Search, View Mode Switcher (简约 / 完整 / 列表) -->
-    <section class="toolbar">
-      <div class="filter-group">
-        <div class="segmented" id="filter-tabs">
-          <button class="seg-btn active" data-type="All" onclick="setFilterType('All')">全部平台</button>
-          <button class="seg-btn" data-type="ChatGPT" onclick="setFilterType('ChatGPT')">
-            <span class="badge-dot dot-chatgpt"></span>ChatGPT
-          </button>
-          <button class="seg-btn" data-type="Google" onclick="setFilterType('Google')">
-            <span class="badge-dot dot-google"></span>Google
-          </button>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="搜索账号、备注、设备、地区、日期..."
+            oninput="onSearchInput(this.value)"
+          />
+          <button class="clear-search" id="btn-clear-search" onclick="clearSearch()" style="display: none;">×</button>
         </div>
 
-        <div class="segmented" id="health-tabs">
-          <button class="seg-btn active" data-health="All" onclick="setHealthFilter('All')">全部状态</button>
-          <button class="seg-btn" data-health="可用" onclick="setHealthFilter('可用')">
-            <span class="badge-dot dot-available"></span>可用
-          </button>
-          <button class="seg-btn" data-health="封号" onclick="setHealthFilter('封号')">
-            <span class="badge-dot dot-banned"></span>封号
-          </button>
-          <button class="seg-btn" data-health="人机" onclick="setHealthFilter('人机')">
-            <span class="badge-dot dot-captcha"></span>人机
-          </button>
-          <button class="seg-btn" data-health="短信" onclick="setHealthFilter('短信')">
-            <span class="badge-dot dot-sms"></span>短信
-          </button>
-          <button class="seg-btn" data-health="验证" onclick="setHealthFilter('验证')">
-            <span class="badge-dot dot-verify"></span>验证
-          </button>
-          <button class="seg-btn" data-health="不可用" onclick="setHealthFilter('不可用')">
-            <span class="badge-dot dot-unavailable"></span>不可用
-          </button>
-        </div>
-      </div>
+        <!-- Toolbar Right (TOTP indicator & View mode switcher) -->
+        <div class="toolbar-right">
+          <div class="totp-global-indicator" title="2FA 动态验证码每 30 秒自动刷新">
+            <svg class="ring-svg" width="18" height="18" viewBox="0 0 24 24">
+              <circle class="ring-bg" cx="12" cy="12" r="9"></circle>
+              <circle class="ring-progress" id="global-ring" cx="12" cy="12" r="9"></circle>
+            </svg>
+            <span class="totp-timer-text"><strong id="global-remaining">30</strong>s</span>
+          </div>
 
-      <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <input
-          type="text"
-          id="search-input"
-          placeholder="搜索账号、备注、日期、地区..."
-          oninput="onSearchInput(this.value)"
-        />
-        <button class="clear-search" id="btn-clear-search" onclick="clearSearch()" style="display: none;">×</button>
-      </div>
-
-      <div class="toolbar-right">
-        <div class="totp-global-indicator" title="2FA 动态验证码每 30 秒自动刷新">
-          <svg class="ring-svg" width="18" height="18" viewBox="0 0 24 24">
-            <circle class="ring-bg" cx="12" cy="12" r="9"></circle>
-            <circle class="ring-progress" id="global-ring" cx="12" cy="12" r="9"></circle>
-          </svg>
-          <span class="totp-timer-text"><strong id="global-remaining">30</strong>s</span>
+          <div class="segmented" id="view-tabs">
+            <button class="seg-btn active" id="view-compact" onclick="setViewMode('compact')" title="简约视图：统一高度，密码与秘钥仅保留一键复制按钮">
+              简约
+            </button>
+            <button class="seg-btn" id="view-full" onclick="setViewMode('full')" title="完整视图：展开全部字段详情与明文查看开关">
+              完整
+            </button>
+            <button class="seg-btn" id="view-table" onclick="setViewMode('table')" title="列表视图：单行横向对齐表格">
+              表格
+            </button>
+          </div>
         </div>
-
-        <!-- View Mode Switcher: 简约卡片 / 完整卡片 / 紧凑表格 -->
-        <div class="segmented" id="view-tabs">
-          <button class="seg-btn active" id="view-compact" onclick="setViewMode('compact')" title="简约视图：统一高度，密码与秘钥仅保留一键复制按钮">
-            简约视图
-          </button>
-          <button class="seg-btn" id="view-full" onclick="setViewMode('full')" title="完整视图：展开全部字段详情与明文查看开关">
-            完整视图
-          </button>
-          <button class="seg-btn" id="view-table" onclick="setViewMode('table')" title="列表视图：单行横向对齐表格">
-            表格列表
-          </button>
-        </div>
-      </div>
-    </section>
+      </section>
     </div><!-- /.sticky-nav -->
 
     <!-- Main Account List Container -->
