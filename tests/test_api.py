@@ -113,3 +113,11 @@ def test_api_health_status_lifecycle_and_dashboard_filter(tmp_path: Path):
     assert len(dash_all["accounts"]) == 2
     assert dash_all["stats"]["health"]["验证"] == 1
     assert dash_all["stats"]["health"]["封号"] == 1
+    assert dash_all["stats"]["available"] == 0
+    assert dash_all["stats"]["unavailable"] == 2
+
+    dash_unavail = api.get_dashboard(health_status="不可用")
+    assert len(dash_unavail["accounts"]) == 2
+
+    dash_avail = api.get_dashboard(health_status="可用")
+    assert len(dash_avail["accounts"]) == 0

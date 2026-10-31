@@ -380,87 +380,48 @@ body {
   flex-shrink: 0;
 }
 
-/* Filter Select Dropdown */
-.filter-dropdown-wrap {
+/* Health Filter Select (Second-level Native Reliable Dropdown) */
+.health-select-wrap {
   position: relative;
-  display: inline-block;
-}
-
-.filter-select-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.health-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  background-color: var(--bg-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.12s ease;
-  user-select: none;
-  white-space: nowrap;
+  outline: none;
+  transition: all 0.15s ease;
 }
 
-.filter-select-btn:hover {
+.health-filter-select:hover {
   border-color: var(--border-focus);
+  background-color: var(--bg-surface-hover);
 }
 
-.filter-select-btn.active {
+.health-filter-select:focus {
   border-color: var(--accent-primary);
-  background: var(--accent-glow);
-  color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-.dropdown-arrow {
-  font-size: 9px;
-  opacity: 0.7;
-  margin-left: 2px;
-}
-
-.filter-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 220;
+.health-filter-select option {
   background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
-  padding: 5px;
-  min-width: 175px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: popoverFadeIn 0.12s ease-out;
-}
-
-.dropdown-opt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 9px;
-  border: none;
-  background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s ease;
-}
-
-.dropdown-opt:hover {
-  background: var(--bg-elevated);
-}
-
-.dropdown-opt.active {
-  background: var(--accent-glow);
-  font-weight: 700;
-  color: var(--accent-primary);
+  padding: 6px 10px;
 }
 
 .segmented {
@@ -706,23 +667,47 @@ body {
 .u-2fa-flag {
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid transparent;
   cursor: pointer;
   background: var(--bg-elevated);
   color: var(--text-secondary);
+  transition: all 0.14s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.u-2fa-flag:hover {
+  filter: brightness(1.12);
+  transform: translateY(-0.5px);
 }
 
 .u-2fa-flag.modified {
-  background: var(--bg-totp);
-  color: var(--color-totp);
-  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 .u-2fa-flag.unmodified {
-  background: var(--bg-google);
-  color: var(--color-google);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.u-2fa-flag.none {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+  cursor: default;
+}
+
+.u-2fa-flag.none:hover {
+  filter: none;
+  transform: none;
 }
 
 /* Row 2: Unified Action Strip (Left: Live 6-digit TOTP; Right: 1-Click Copy Buttons) */
@@ -829,6 +814,10 @@ body {
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
   cursor: help;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
 }
 
 .u-node-pill {
@@ -1862,7 +1851,46 @@ body {
   font-weight: 700;
 }
 
-/* Line 2: Dedicated Status Row (分行显示) */
+/* Line 2: Security Flags Row (初始密码是否改、2FA是否改独立换行展示) */
+.u-sec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11.5px;
+}
+
+.u-sec-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.u-sec-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.u-sec-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.u-sec-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+/* Line 3: Dedicated Status Row (分行显示) */
 .u-status-row {
   display: flex;
   align-items: center;

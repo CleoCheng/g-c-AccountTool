@@ -10,7 +10,7 @@
   <div class="app-shell">
     <!-- Sticky Navigation Wrapper: 固定顶部主菜单和次级筛选菜单 -->
     <div class="sticky-nav">
-      <!-- Top Header & High-level Stats -->
+      <!-- Top Header & Stats Bar: 仅保留 总计、ChatGPT、Google、可用、不可用 5个核心统计 -->
       <header class="topbar">
         <div class="brand">
           <div class="brand-logo">
@@ -25,59 +25,31 @@
           </div>
         </div>
 
-        <!-- Sleek non-overflowing summary stats pills -->
+        <!-- 顶部第一级状态统计胶囊（总计 / ChatGPT / Google / 可用 / 不可用） -->
         <div class="stats-bar" id="topbar-stats">
-          <div class="stat-group">
-            <div class="stat-pill" onclick="setFilterType('All'); setHealthFilter('All')" title="查看全部账号">
-              <span class="stat-label">总计</span>
-              <span class="stat-value" id="stat-total">0</span>
-            </div>
-            <div class="stat-pill" onclick="setFilterType('ChatGPT')" title="筛选 ChatGPT 账号">
-              <span class="stat-dot dot-chatgpt"></span>
-              <span class="stat-label">ChatGPT</span>
-              <span class="stat-value" id="stat-chatgpt">0</span>
-            </div>
-            <div class="stat-pill" onclick="setFilterType('Google')" title="筛选 Google 账号">
-              <span class="stat-dot dot-google"></span>
-              <span class="stat-label">Google</span>
-              <span class="stat-value" id="stat-google">0</span>
-            </div>
+          <div class="stat-pill active" onclick="setFilterType('All'); setHealthFilter('All')" id="stat-pill-total" title="查看全部账号">
+            <span class="stat-label">总计</span>
+            <span class="stat-value" id="stat-total">0</span>
           </div>
-
-          <div class="stat-divider"></div>
-
-          <!-- Quick status chips (compact & 1-click filter) -->
-          <div class="stat-chips-group">
-            <div class="stat-chip chip-available" onclick="setHealthFilter('可用')" title="可用账号数量 (点击筛选)">
-              <span class="stat-dot dot-available"></span>
-              <span class="chip-label">可用</span>
-              <span class="chip-val" id="stat-health-available">0</span>
-            </div>
-            <div class="stat-chip chip-banned" onclick="setHealthFilter('封号')" title="封号账号数量 (点击筛选)">
-              <span class="stat-dot dot-banned"></span>
-              <span class="chip-label">封号</span>
-              <span class="chip-val" id="stat-health-banned">0</span>
-            </div>
-            <div class="stat-chip chip-captcha" onclick="setHealthFilter('人机')" title="人机验证账号数量 (点击筛选)">
-              <span class="stat-dot dot-captcha"></span>
-              <span class="chip-label">人机</span>
-              <span class="chip-val" id="stat-health-captcha">0</span>
-            </div>
-            <div class="stat-chip chip-sms" onclick="setHealthFilter('短信')" title="短信验证账号数量 (点击筛选)">
-              <span class="stat-dot dot-sms"></span>
-              <span class="chip-label">短信</span>
-              <span class="chip-val" id="stat-health-sms">0</span>
-            </div>
-            <div class="stat-chip chip-verify" onclick="setHealthFilter('验证')" title="邮箱/重置验证账号数量 (点击筛选)">
-              <span class="stat-dot dot-verify"></span>
-              <span class="chip-label">验证</span>
-              <span class="chip-val" id="stat-health-verify">0</span>
-            </div>
-            <div class="stat-chip chip-unavailable" onclick="setHealthFilter('不可用')" title="不可用/闲置账号数量 (点击筛选)">
-              <span class="stat-dot dot-unavailable"></span>
-              <span class="chip-label">停用</span>
-              <span class="chip-val" id="stat-health-unavailable">0</span>
-            </div>
+          <div class="stat-pill" onclick="setFilterType('ChatGPT')" id="stat-pill-chatgpt" title="筛选 ChatGPT 账号">
+            <span class="stat-dot dot-chatgpt"></span>
+            <span class="stat-label">ChatGPT</span>
+            <span class="stat-value" id="stat-chatgpt">0</span>
+          </div>
+          <div class="stat-pill" onclick="setFilterType('Google')" id="stat-pill-google" title="筛选 Google 账号">
+            <span class="stat-dot dot-google"></span>
+            <span class="stat-label">Google</span>
+            <span class="stat-value" id="stat-google">0</span>
+          </div>
+          <div class="stat-pill" onclick="setHealthFilter('可用')" id="stat-pill-available" title="筛选「可用」账号">
+            <span class="stat-dot dot-available"></span>
+            <span class="stat-label">可用</span>
+            <span class="stat-value" id="stat-health-available">0</span>
+          </div>
+          <div class="stat-pill" onclick="setHealthFilter('不可用')" id="stat-pill-unavailable" title="筛选「不可用 / 停用」账号">
+            <span class="stat-dot dot-unavailable"></span>
+            <span class="stat-label">不可用</span>
+            <span class="stat-value" id="stat-health-unavailable">0</span>
           </div>
         </div>
 
@@ -113,7 +85,7 @@
         </div>
       </header>
 
-      <!-- Toolbar: Single-Line Responsive Controls Bar -->
+      <!-- Toolbar: 次级菜单（平台分段 + 全状态可选原生下拉筛选 + 搜索框 + 视图切换） -->
       <section class="toolbar">
         <div class="filter-group">
           <!-- Platform Filter Tabs -->
@@ -127,36 +99,17 @@
             </button>
           </div>
 
-          <!-- Compact Status Dropdown Filter -->
-          <div class="filter-dropdown-wrap" id="health-filter-dropdown">
-            <button class="filter-select-btn" onclick="toggleHealthFilterDropdown(event)" id="btn-health-filter-label" title="点击按可用状态筛选">
-              <span class="badge-dot dot-available" id="filter-current-dot" style="display: none;"></span>
-              <span id="filter-current-text">全部状态</span>
-              <span class="dropdown-arrow">▾</span>
-            </button>
-            <div class="filter-dropdown-menu" id="menu-health-filter" style="display: none;">
-              <button class="dropdown-opt active" data-health="All" onclick="selectHealthFilterOption('All', '全部状态', '')">
-                <span>全部可用状态</span>
-              </button>
-              <button class="dropdown-opt" data-health="可用" onclick="selectHealthFilterOption('可用', '可用', 'dot-available')">
-                <span class="badge-dot dot-available"></span><span>可用 (正常使用)</span>
-              </button>
-              <button class="dropdown-opt" data-health="封号" onclick="selectHealthFilterOption('封号', '封号', 'dot-banned')">
-                <span class="badge-dot dot-banned"></span><span>封号 (官方封禁)</span>
-              </button>
-              <button class="dropdown-opt" data-health="人机" onclick="selectHealthFilterOption('人机', '人机', 'dot-captcha')">
-                <span class="badge-dot dot-captcha"></span><span>人机 (盾 / 验证码)</span>
-              </button>
-              <button class="dropdown-opt" data-health="短信" onclick="selectHealthFilterOption('短信', '短信', 'dot-sms')">
-                <span class="badge-dot dot-sms"></span><span>短信 (手机验证)</span>
-              </button>
-              <button class="dropdown-opt" data-health="验证" onclick="selectHealthFilterOption('验证', '验证', 'dot-verify')">
-                <span class="badge-dot dot-verify"></span><span>验证 (邮箱/密码)</span>
-              </button>
-              <button class="dropdown-opt" data-health="不可用" onclick="selectHealthFilterOption('不可用', '不可用', 'dot-unavailable')">
-                <span class="badge-dot dot-unavailable"></span><span>不可用 (闲置停用)</span>
-              </button>
-            </div>
+          <!-- 第二级状态筛选：全状态原生下拉选择框，100%可靠弹出 -->
+          <div class="health-select-wrap">
+            <select id="health-filter-select" class="health-filter-select" onchange="onHealthSelectChange(this.value)" title="选择账号状态进行筛选">
+              <option value="All">全部状态 (全部)</option>
+              <option value="可用">🟢 可用 (正常)</option>
+              <option value="不可用">⚪ 不可用 (停用)</option>
+              <option value="封号">🔴 封号 (官方封禁)</option>
+              <option value="人机">🟠 人机 (盾/验证码)</option>
+              <option value="短信">🟣 短信 (手机验证)</option>
+              <option value="验证">🔵 验证 (邮箱/密码)</option>
+            </select>
           </div>
         </div>
 

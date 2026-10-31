@@ -48,13 +48,14 @@ async function loadDashboard() {
   try {
     const data = await callApi("get_dashboard", state.filterType, state.searchQuery, state.statusFilter, state.healthFilter);
     state.accounts = data.accounts || [];
-    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0 };
+    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {} };
     if (data.settings) {
       applyTheme(data.settings.theme || "dark", false);
       const savedMode = data.settings.view_mode === "grid" ? "compact" : data.settings.view_mode || "compact";
       applyViewMode(savedMode, false);
     }
     renderStats();
+    syncTopBarPills();
     renderAccounts();
   } catch (err) {
     console.error("Load dashboard failed:", err);
@@ -64,18 +65,45 @@ async function loadDashboard() {
 function renderStats() {
   const setEl = (id, val) => {
     const el = document.getElementById(id);
-    if (el) el.textContent = val || 0;
+    if (el) el.textContent = val !== undefined && val !== null ? val : 0;
   };
   setEl("stat-total", state.stats.total);
   setEl("stat-google", state.stats.google);
   setEl("stat-chatgpt", state.stats.chatgpt);
   const h = state.stats.health || {};
-  setEl("stat-health-available", h["可用"]);
-  setEl("stat-health-banned", h["封号"]);
-  setEl("stat-health-captcha", h["人机"]);
-  setEl("stat-health-sms", h["短信"]);
-  setEl("stat-health-verify", h["验证"]);
-  setEl("stat-health-unavailable", h["不可用"]);
+  const avail = state.stats.available !== undefined ? state.stats.available : (h["可用"] || 0);
+  const unavail = state.stats.unavailable !== undefined ? state.stats.unavailable : (h["不可用"] || 0);
+  setEl("stat-health-available", avail);
+  setEl("stat-health-unavailable", unavail);
+}
+
+function syncTopBarPills() {
+  const isTotal = (state.filterType === "All" || !state.filterType) && (state.healthFilter === "All" || !state.healthFilter);
+  const pillTotal = document.getElementById("stat-pill-total");
+  const pillGpt = document.getElementById("stat-pill-chatgpt");
+  const pillGgl = document.getElementById("stat-pill-google");
+  const pillAvail = document.getElementById("stat-pill-available");
+  const pillUnavail = document.getElementById("stat-pill-unavailable");
+
+  if (pillTotal) pillTotal.classList.toggle("active", isTotal);
+  if (pillGpt) pillGpt.classList.toggle("active", state.filterType === "ChatGPT");
+  if (pillGgl) pillGgl.classList.toggle("active", state.filterType === "Google");
+  if (pillAvail) pillAvail.classList.toggle("active", state.healthFilter === "可用");
+  if (pillUnavail) pillUnavail.classList.toggle("active", state.healthFilter === "不可用");
+}
+
+function onHealthSelectChange(val) {
+  setHealthFilter(val);
+}
+
+function setHealthFilter(health) {
+  state.healthFilter = health || "All";
+  const sel = document.getElementById("health-filter-select");
+  if (sel && sel.value !== state.healthFilter) {
+    sel.value = state.healthFilter;
+  }
+  syncTopBarPills();
+  loadDashboard();
 }
 
 function getHealthMeta(status) {
@@ -111,56 +139,11 @@ function closeAllHealthPopovers() {
   document.querySelectorAll(".u-health-popover").forEach((el) => {
     el.style.display = "none";
   });
-  const filterMenu = document.getElementById("menu-health-filter");
-  if (filterMenu) filterMenu.style.display = "none";
 }
 
 document.addEventListener("click", () => {
   closeAllHealthPopovers();
 });
-
-function toggleHealthFilterDropdown(event) {
-  if (event) event.stopPropagation();
-  const menu = document.getElementById("menu-health-filter");
-  if (!menu) return;
-  const isShown = menu.style.display === "block";
-  closeAllHealthPopovers();
-  if (!isShown) menu.style.display = "block";
-}
-
-function selectHealthFilterOption(healthVal, labelText, dotClass) {
-  closeAllHealthPopovers();
-  state.healthFilter = healthVal;
-
-  const textEl = document.getElementById("filter-current-text");
-  const dotEl = document.getElementById("filter-current-dot");
-  const btnEl = document.getElementById("btn-health-filter-label");
-  if (textEl) textEl.textContent = healthVal === "All" ? "全部状态" : labelText;
-  if (dotEl) {
-    dotEl.className = "badge-dot " + (dotClass || (healthVal === "All" ? "" : "dot-available"));
-    dotEl.style.display = healthVal === "All" ? "none" : "inline-block";
-  }
-  if (btnEl) {
-    btnEl.classList.toggle("active", healthVal !== "All");
-  }
-
-  document.querySelectorAll("#menu-health-filter .dropdown-opt").forEach((opt) => {
-    opt.classList.toggle("active", opt.dataset.health === healthVal);
-  });
-
-  const hMeta = getHealthMeta(healthVal);
-  document.querySelectorAll(".stat-chip").forEach((chip) => {
-    chip.classList.toggle("active", chip.classList.contains(`chip-${hMeta.key}`) && healthVal !== "All");
-  });
-
-  loadDashboard();
-}
-
-function setHealthFilter(health) {
-  const hMeta = getHealthMeta(health);
-  const label = health === "All" ? "全部状态" : hMeta.label;
-  selectHealthFilterOption(health, label, hMeta.dotClass);
-}
 
 async function onQuickSelectHealth(accountId, nextStatus) {
   closeAllHealthPopovers();
@@ -1155,17 +1138,11 @@ function flashCopyButton(btnEl) {
 
 // Filters & Search
 function setFilterType(type) {
-  state.filterType = type;
+  state.filterType = type || "All";
   document.querySelectorAll("#filter-tabs .seg-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.type === type);
+    btn.classList.toggle("active", btn.dataset.type === state.filterType);
   });
-  document.querySelectorAll(".stat-group .stat-pill").forEach((pill) => {
-    const text = pill.textContent || "";
-    const isMatched = (type === "All" && text.includes("总计")) ||
-                      (type === "ChatGPT" && text.includes("ChatGPT")) ||
-                      (type === "Google" && text.includes("Google"));
-    pill.classList.toggle("active", isMatched);
-  });
+  syncTopBarPills();
   loadDashboard();
 }
 

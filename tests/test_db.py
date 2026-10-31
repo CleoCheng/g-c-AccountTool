@@ -155,7 +155,33 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     # 5. Stats breakdown
     stats = svc.get_stats()
     assert stats["total"] == 3
+    assert stats["available"] == 1
+    assert stats["unavailable"] == 2
     assert stats["health"]["可用"] == 1
     assert stats["health"]["封号"] == 1
     assert stats["health"]["人机"] == 1
     assert stats["health"]["短信"] == 0
+
+    # 6. Deactivated accounts count as unavailable and are excluded from 可用
+    a4 = svc.add_account({
+        "account_type": "ChatGPT",
+        "account": "deactivated_acc@example.com",
+        "password": "Password123!",
+        "health_status": "可用",
+        "deactivated_date": "2026-10-25",
+    })
+    stats2 = svc.get_stats()
+    assert stats2["total"] == 4
+    assert stats2["available"] == 1
+    assert stats2["unavailable"] == 3
+    assert stats2["health"]["可用"] == 1
+    assert stats2["health"]["不可用"] == 3
+
+    avail_filtered = svc.list_accounts(health_status="可用")
+    assert len(avail_filtered) == 1
+    assert avail_filtered[0]["account"] == "normal@chatgpt.com"
+
+    unavail_filtered = svc.list_accounts(health_status="不可用")
+    unavail_accounts = [a["account"] for a in unavail_filtered]
+    assert "deactivated_acc@example.com" in unavail_accounts
+    assert len(unavail_filtered) == 3

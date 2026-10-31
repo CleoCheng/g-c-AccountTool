@@ -115,6 +115,8 @@ class DatabaseService:
 
             # Ensure any null or empty health_status gets default '可用'
             conn.execute("UPDATE accounts SET health_status = '可用' WHERE health_status IS NULL OR health_status = ''")
+            # Deactivated accounts default to '不可用'
+            conn.execute("UPDATE accounts SET health_status = '不可用' WHERE deactivated_date IS NOT NULL AND deactivated_date != '' AND health_status = '可用'")
 
             # Backfill permanent paired fingerprint config for any account missing it
             rows = conn.execute(
@@ -189,8 +191,13 @@ class DatabaseService:
         elif status == "deactivated":
             query += " AND (deactivated_date IS NOT NULL AND deactivated_date != '')"
         if health_status and health_status != "All":
-            query += " AND health_status = ?"
-            params.append(health_status)
+            if health_status == "可用":
+                query += " AND health_status = '可用' AND (deactivated_date IS NULL OR deactivated_date = '')"
+            elif health_status == "不可用":
+                query += " AND (health_status != '可用' OR (deactivated_date IS NOT NULL AND deactivated_date != ''))"
+            else:
+                query += " AND health_status = ?"
+                params.append(health_status)
         if search and search.strip():
             kw = f"%{search.strip()}%"
             query += (
@@ -452,20 +459,28 @@ class DatabaseService:
             total = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
             google = conn.execute("SELECT COUNT(*) FROM accounts WHERE account_type = 'Google'").fetchone()[0]
             chatgpt = conn.execute("SELECT COUNT(*) FROM accounts WHERE account_type = 'ChatGPT'").fetchone()[0]
-            deactivated = conn.execute(
-                "SELECT COUNT(*) FROM accounts WHERE deactivated_date IS NOT NULL AND deactivated_date != ''"
+            available = conn.execute(
+                "SELECT COUNT(*) FROM accounts WHERE health_status = '可用' AND (deactivated_date IS NULL OR deactivated_date = '')"
             ).fetchone()[0]
+            unavailable = total - available
             health_counts = {}
             for hs in VALID_HEALTH_STATUSES:
-                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (hs,)).fetchone()[0]
-                health_counts[hs] = cnt
+                if hs == "可用":
+                    health_counts[hs] = available
+                elif hs == "不可用":
+                    health_counts[hs] = unavailable
+                else:
+                    cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (hs,)).fetchone()[0]
+                    health_counts[hs] = cnt
         return {
             "total": total,
             "google": google,
             "chatgpt": chatgpt,
             "other": total - google - chatgpt,
-            "active": total - deactivated,
-            "deactivated": deactivated,
+            "available": available,
+            "unavailable": unavailable,
+            "active": available,
+            "deactivated": unavailable,
             "health": health_counts,
         }
 
