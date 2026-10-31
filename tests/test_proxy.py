@@ -1,5 +1,6 @@
 from pathlib import Path
 from src.proxy_service import (
+    find_clash_config_files,
     is_valid_proxy_node_name,
     parse_clash_yaml_summary,
 )
@@ -94,3 +95,22 @@ def test_account_node_lock_prevents_modification_until_unlocked(tmp_path: Path):
     assert res3["ok"] is True
     assert res3["account"]["fp_config"]["proxy_node"] == "🇺🇸 United States | 01"
     assert res3["account"]["fp_config"]["node_locked"] is True
+
+
+def test_env_override_clash_config_takes_priority(tmp_path: Path, monkeypatch):
+    custom_yaml = tmp_path / "my-custom-clash.yaml"
+    custom_yaml.write_text("mixed-port: 7890\n", encoding="utf-8")
+    monkeypatch.setenv("KEYVAULT_CLASH_CONFIG", str(custom_yaml))
+
+    found = find_clash_config_files()
+    assert found, "custom config should be discovered"
+    label, path = found[0]
+    assert Path(path).resolve() == custom_yaml.resolve()
+    assert "KEYVAULT_CLASH_CONFIG" in label
+
+
+def test_env_override_clash_config_missing_file_is_ignored(tmp_path: Path, monkeypatch):
+    missing = tmp_path / "does-not-exist.yaml"
+    monkeypatch.setenv("KEYVAULT_CLASH_CONFIG", str(missing))
+    found = find_clash_config_files()
+    assert all(Path(p).resolve() != missing.resolve() for _, p in found)

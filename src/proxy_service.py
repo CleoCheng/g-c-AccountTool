@@ -146,7 +146,13 @@ def find_clash_config_files() -> list[tuple[str, Path]]:
     localappdata = Path(os.environ.get("LOCALAPPDATA", "")) if os.environ.get("LOCALAPPDATA") else Path.home()
     home = Path.home()
 
-    candidates: list[tuple[str, Path]] = [
+    candidates: list[tuple[str, Path]] = []
+    # User override takes priority: KEYVAULT_CLASH_CONFIG=/path/to/config.yaml
+    env_override = (os.environ.get("KEYVAULT_CLASH_CONFIG") or "").strip().strip('"')
+    if env_override:
+        candidates.append(("自定义配置 (KEYVAULT_CLASH_CONFIG)", Path(os.path.expanduser(env_override))))
+
+    candidates += [
         # Clash Verge Rev / Clash Verge
         ("Clash Verge Rev", appdata / "io.github.clash-verge-rev.clash-verge-rev" / "clash-verge.yaml"),
         ("Clash Verge Rev", appdata / "io.github.clash-verge-rev.clash-verge-rev" / "config.yaml"),
