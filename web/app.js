@@ -307,7 +307,7 @@ function renderCardItem(item, remaining) {
               ? `<button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'secret_key', '2FA秘钥')">2FA</button>`
               : ""
           }
-          <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id})" title="${escapeHtml(fpInfo.tooltip)}">
+          <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id}, this)" title="${escapeHtml(fpInfo.tooltip)}">
             🌐 启动浏览器
           </button>
         </div>
@@ -394,7 +394,7 @@ function renderTableView(remaining) {
               <button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'account', '账号')">账号</button>
               <button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'password', '密码')">密码</button>
               ${item.secret_key ? `<button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'secret_key', '2FA秘钥')">2FA</button>` : ""}
-              <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id})">🌐 启动浏览器</button>
+              <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id}, this)">🌐 启动浏览器</button>
             </div>
           </td>
           <td style="color: var(--text-secondary);">${escapeHtml(metaLeft)}</td>
@@ -435,7 +435,7 @@ function renderTableView(remaining) {
 // ============================================================
 // PROXY NODE SELECTOR & NODE LOCK MODAL
 // ============================================================
-async function onClickLaunchBrowser(accountId) {
+async function onClickLaunchBrowser(accountId, btnEl = null) {
   const item = state.accounts.find((a) => a.id === accountId);
   if (!item) return;
   const fp = item.fp_config || {};
@@ -444,10 +444,18 @@ async function onClickLaunchBrowser(accountId) {
     await openNodeModal(accountId);
     return;
   }
-  await executeLaunchBrowser(accountId);
+  await executeLaunchBrowser(accountId, btnEl);
 }
 
-async function executeLaunchBrowser(accountId) {
+async function executeLaunchBrowser(accountId, btnEl = null) {
+  const origHtml = btnEl ? btnEl.innerHTML : "";
+  if (btnEl) {
+    btnEl.classList.add("loading");
+    btnEl.disabled = true;
+    btnEl.innerHTML = "<span>🚀 正在启动...</span>";
+  }
+  showToast("🚀 正在配置独立指纹环境并启动浏览器...", 2800);
+
   try {
     const res = await callApi("launch_browser", accountId);
     if (res && res.ok) {
@@ -459,6 +467,12 @@ async function executeLaunchBrowser(accountId) {
     }
   } catch (err) {
     showToast("启动浏览器异常: " + err.message);
+  } finally {
+    if (btnEl) {
+      btnEl.classList.remove("loading");
+      btnEl.disabled = false;
+      btnEl.innerHTML = origHtml;
+    }
   }
 }
 
@@ -471,15 +485,33 @@ async function openNodeModal(accountId) {
   document.getElementById("node-modal-title").textContent = `节点锁定配置 · [${fp.profile_code || "FP"}] ${item.masked_account}`;
   document.getElementById("node-modal").style.display = "flex";
 
+  // Loading state
+  const loadingEl = document.getElementById("node-modal-loading");
+  const contentEl = document.getElementById("node-modal-main-content");
+  const subEl = document.getElementById("node-modal-sub");
+  const btnSaveOnly = document.getElementById("btn-save-node-only");
+  const btnSaveLaunch = document.getElementById("btn-save-and-launch");
+
+  if (loadingEl) loadingEl.style.display = "flex";
+  if (contentEl) contentEl.style.display = "none";
+  if (btnSaveOnly) btnSaveOnly.disabled = true;
+  if (btnSaveLaunch) btnSaveLaunch.disabled = true;
+  subEl.textContent = "正在实时探测本机代理端口与节点列表，请稍候...";
+
   try {
-    state.proxyEnv = await callApi("get_proxy_nodes");
+    state.proxyEnv = await callApi("get_proxy_nodes", item.account_type);
   } catch (e) {
     state.proxyEnv = { client_name: "未检测到代理", controller_online: false, ports: [], nodes: [] };
   }
 
+  if (loadingEl) loadingEl.style.display = "none";
+  if (contentEl) contentEl.style.display = "block";
+  if (btnSaveOnly) btnSaveOnly.disabled = false;
+  if (btnSaveLaunch) btnSaveLaunch.disabled = false;
+
   const env = state.proxyEnv;
-  const subEl = document.getElementById("node-modal-sub");
-  subEl.textContent = `已探测本机代理环境：${env.client_name} (${env.controller_online ? "🟢 控制接口在线" : "⚪ 端口/配置模式"}) · 共发现 ${(env.nodes || []).length} 个可用节点`;
+  const activeHint = env.active_node ? ` · 本机当前在用:【${env.active_node}】` : "";
+  subEl.textContent = `已探测本机代理环境：${env.client_name} (${env.controller_online ? "🟢 控制接口在线" : "⚪ 端口/配置模式"}) · 共发现 ${(env.nodes || []).length} 个可用节点${activeHint}`;
 
   // Populate Ports Dropdown
   const portSelect = document.getElementById("node-port-select");
@@ -488,10 +520,30 @@ async function openNodeModal(accountId) {
     ? env.ports
     : [{ url: "http://127.0.0.1:7890", label: "127.0.0.1:7890 (通用默认代理端口)" }];
 
-  state.selectedProxyUrl = fp.proxy !== undefined && fp.proxy !== "" ? fp.proxy : ports[0].url;
-  const firstActiveNode =
-    env.current_groups && Object.values(env.current_groups).find((v) => v && !["DIRECT", "REJECT", "GLOBAL"].includes(v));
-  state.selectedNodeName = fp.proxy_node !== undefined ? fp.proxy_node : (firstActiveNode || "");
+  state.selectedProxyUrl = fp.proxy ? fp.proxy : ports[0].url;
+
+  // Auto select active node by default if not locked
+  if (fp.node_locked && fp.proxy_node) {
+    state.selectedNodeName = fp.proxy_node;
+  } else if (fp.proxy_node) {
+    state.selectedNodeName = fp.proxy_node;
+  } else if (env.active_node) {
+    state.selectedNodeName = env.active_node;
+  } else {
+    state.selectedNodeName = "";
+  }
+
+  // Auto switch tab to the active node's region if present
+  if (state.selectedNodeName) {
+    const matchedNode = (env.nodes || []).find((n) => n.name === state.selectedNodeName);
+    if (matchedNode && matchedNode.region) {
+      state.selectedRegion = matchedNode.region;
+    } else {
+      state.selectedRegion = "全部";
+    }
+  } else {
+    state.selectedRegion = "全部";
+  }
 
   const portOptionsHtml = ports
     .map(
@@ -516,6 +568,13 @@ async function openNodeModal(accountId) {
   renderNodeModalLockState(item);
   renderNodeRegionTabs();
   renderNodeGrid(!!fp.node_locked);
+
+  setTimeout(() => {
+    const selEl = document.querySelector(".node-item.selected");
+    if (selEl) {
+      selEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, 100);
 }
 
 function onCustomProxyUrlInput(val) {
@@ -573,6 +632,7 @@ function selectNodeRegion(region) {
 
 function renderNodeGrid(isLocked) {
   const nodes = (state.proxyEnv && state.proxyEnv.nodes) || [];
+  const activeNodeName = (state.proxyEnv && state.proxyEnv.active_node) || "";
   const filtered = state.selectedRegion === "全部" ? nodes : nodes.filter((n) => n.region === state.selectedRegion);
   const gridEl = document.getElementById("node-grid-container");
 
@@ -586,7 +646,7 @@ function renderNodeGrid(isLocked) {
   if (!filtered.length) {
     gridEl.innerHTML =
       portOnlyCard +
-      `<div style="color:var(--text-secondary);font-size:12px;padding:12px;">未探测到 Clash/Mihomo 节点列表，可直接锁定上方代理端口使用</div>`;
+      `<div style="color:var(--text-secondary);font-size:12px;padding:12px;">未探测到该分区下的节点，可直接锁定上方代理端口使用</div>`;
     return;
   }
 
@@ -595,10 +655,15 @@ function renderNodeGrid(isLocked) {
     filtered
       .map((n) => {
         const isSel = n.name === state.selectedNodeName;
+        const isLiveActive = n.name === activeNodeName;
         const delayHtml = n.delay ? `<span class="node-delay">${n.delay}ms</span>` : "";
+        const activeBadge = isLiveActive ? `<span class="node-item-badge" title="本机当前正在生效的代理节点">🟢 当前在用</span>` : "";
         return `
-          <div class="node-item ${isSel ? "selected" : ""} ${isLocked ? "disabled" : ""}" onclick="onSelectNodeItem('${escapeHtml(n.name)}', ${isLocked})">
-            <span>${escapeHtml(n.name)}</span>
+          <div class="node-item ${isSel ? "selected" : ""} ${isLiveActive ? "is-active-now" : ""} ${isLocked ? "disabled" : ""}" onclick="onSelectNodeItem('${escapeHtml(n.name)}', ${isLocked})">
+            <span style="display:flex;align-items:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHtml(n.name)}
+              ${activeBadge}
+            </span>
             ${delayHtml}
           </div>
         `;
@@ -639,6 +704,12 @@ async function saveAndLockNode(andLaunch = false) {
   const item = state.accounts.find((a) => a.id === accId);
   if (!item) return;
 
+  const btn = andLaunch ? document.getElementById("btn-save-and-launch") : document.getElementById("btn-save-node-only");
+  if (btn) {
+    btn.classList.add("loading");
+    btn.disabled = true;
+  }
+
   // If already locked and user clicked "Launch with locked node"
   if (item.fp_config && item.fp_config.node_locked) {
     closeNodeModal();
@@ -649,6 +720,10 @@ async function saveAndLockNode(andLaunch = false) {
   }
 
   if (!state.selectedNodeName && !state.selectedProxyUrl) {
+    if (btn) {
+      btn.classList.remove("loading");
+      btn.disabled = false;
+    }
     showToast("请至少选择一个代理端口或节点");
     return;
   }
@@ -673,6 +748,11 @@ async function saveAndLockNode(andLaunch = false) {
     }
   } catch (err) {
     showToast("保存节点异常: " + err.message);
+  } finally {
+    if (btn) {
+      btn.classList.remove("loading");
+      btn.disabled = false;
+    }
   }
 }
 

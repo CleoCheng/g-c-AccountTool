@@ -285,12 +285,24 @@ def find_active_mihomo_pipe() -> str | None:
     if sys.platform != "win32":
         return None
     try:
-        pipes = [
-            f"\\\\.\\pipe\\{name}"
-            for name in os.listdir(r"\\.\pipe")
-            if any(k in name.lower() for k in ("verge-mihomo", "mihomo", "clash"))
-        ]
-        return pipes[0] if pipes else None
+        candidate_pipes = []
+        for name in os.listdir(r"\\.\pipe"):
+            low = name.lower()
+            if "service" in low or "tunnel" in low or "helper" in low:
+                continue
+            if any(k in low for k in ("verge-mihomo", "mihomo", "clash")):
+                candidate_pipes.append(f"\\\\.\\pipe\\{name}")
+
+        candidate_pipes.sort(key=lambda p: (0 if "verge-mihomo" in p.lower() else 1, p))
+
+        for pipe_path in candidate_pipes:
+            try:
+                code, data = _request_mihomo_pipe(pipe_path, "GET", "/version")
+                if code == 200:
+                    return pipe_path
+            except Exception:
+                continue
+        return None
     except Exception:
         return None
 
@@ -429,7 +441,24 @@ def _call_controller(
     return 0, None
 
 
-def detect_proxy_environment() -> dict:
+def _resolve_leaf_node(px_map: dict, start_name: str, visited: set | None = None) -> str:
+    if visited is None:
+        visited = set()
+    if not start_name or start_name in visited:
+        return start_name or ""
+    visited.add(start_name)
+    node = px_map.get(start_name)
+    if not isinstance(node, dict):
+        return start_name
+    ntype = str(node.get("type") or "")
+    if ntype in ("Selector", "Fallback", "URLTest", "LoadBalance"):
+        now = str(node.get("now") or "").strip()
+        if now and now not in ("DIRECT", "REJECT", "GLOBAL"):
+            return _resolve_leaf_node(px_map, now, visited)
+    return start_name
+
+
+def detect_proxy_environment(account_type: str = "") -> dict:
     sys_proxy = get_system_proxy()
     configs = find_clash_config_files()
     client_label = configs[0][0] if configs else ""
@@ -540,6 +569,36 @@ def detect_proxy_environment() -> dict:
         else:
             client_label = "未检测到代理客户端 (可手动输入代理地址)"
 
+        active_node = ""
+    if controller_online and "px_map" in locals():
+        priority_groups = []
+        acc_low = (account_type or "").lower()
+        if "google" in acc_low:
+            priority_groups = ["Google", "Proxies", "Proxy", "节点选择", "🔰 节点选择", "🚀 节点选择", "GLOBAL"]
+        elif "chatgpt" in acc_low or "openai" in acc_low:
+            priority_groups = ["OpenAI", "ChatGPT", "AI", "Proxies", "Proxy", "节点选择", "🔰 节点选择", "🚀 节点选择", "GLOBAL"]
+        else:
+            priority_groups = ["Proxies", "Proxy", "节点选择", "🔰 节点选择", "🚀 节点选择", "OpenAI", "ChatGPT", "Google", "GLOBAL"]
+
+        for gname in priority_groups:
+            if gname in px_map and isinstance(px_map[gname], dict):
+                now = px_map[gname].get("now")
+                if now:
+                    leaf = _resolve_leaf_node(px_map, now)
+                    if leaf and is_valid_proxy_node_name(leaf, all_group_names):
+                        active_node = leaf
+                        break
+
+        if not active_node:
+            for gname, gobj in px_map.items():
+                if isinstance(gobj, dict) and gobj.get("type") in ("Selector", "Fallback", "URLTest"):
+                    now = gobj.get("now")
+                    if now:
+                        leaf = _resolve_leaf_node(px_map, now)
+                        if leaf and is_valid_proxy_node_name(leaf, all_group_names):
+                            active_node = leaf
+                            break
+
     return {
         "client_name": client_label,
         "controller_online": controller_online,
@@ -547,6 +606,7 @@ def detect_proxy_environment() -> dict:
         "ports": summary["ports"],
         "nodes": summary["nodes"],
         "current_groups": current_groups,
+        "active_node": active_node,
     }
 
 

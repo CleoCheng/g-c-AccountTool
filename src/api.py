@@ -50,8 +50,15 @@ class AccountApi:
             "remaining": 30 - (now % 30),
         }
 
-    def get_proxy_nodes(self) -> dict:
-        return detect_proxy_environment()
+    def get_proxy_nodes(self, account_type_or_id: str | int = "") -> dict:
+        acc_type = ""
+        if isinstance(account_type_or_id, int) or (isinstance(account_type_or_id, str) and account_type_or_id.isdigit()):
+            acc = self.db.get_account(int(account_type_or_id))
+            if acc:
+                acc_type = acc.get("account_type", "")
+        elif isinstance(account_type_or_id, str):
+            acc_type = account_type_or_id
+        return detect_proxy_environment(account_type=acc_type)
 
     def bind_proxy_node(
         self,

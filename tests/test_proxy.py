@@ -114,3 +114,19 @@ def test_env_override_clash_config_missing_file_is_ignored(tmp_path: Path, monke
     monkeypatch.setenv("KEYVAULT_CLASH_CONFIG", str(missing))
     found = find_clash_config_files()
     assert all(Path(p).resolve() != missing.resolve() for _, p in found)
+
+def test_resolve_leaf_active_proxy_node():
+    from src.proxy_service import _resolve_leaf_node
+    mock_px = {
+        "Google": {"type": "Selector", "now": "SG"},
+        "SG": {"type": "Selector", "now": "🇸🇬 Singapore | 04"},
+        "OpenAI": {"type": "Selector", "now": "Proxies"},
+        "Proxies": {"type": "Selector", "now": "SG"},
+        "🇸🇬 Singapore | 04": {"type": "trojan"},
+        "🇺🇸 United States | 01": {"type": "ss"},
+        "GLOBAL": {"type": "Selector", "now": "DIRECT"},
+    }
+    assert _resolve_leaf_node(mock_px, "SG") == "🇸🇬 Singapore | 04"
+    assert _resolve_leaf_node(mock_px, "Google") == "🇸🇬 Singapore | 04"
+    assert _resolve_leaf_node(mock_px, "OpenAI") == "🇸🇬 Singapore | 04"
+    assert _resolve_leaf_node(mock_px, "DIRECT") == "DIRECT"

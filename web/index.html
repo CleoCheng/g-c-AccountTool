@@ -367,6 +367,14 @@
       </div>
 
       <div class="modal-body">
+        <!-- Probing Loading State Box -->
+        <div class="node-modal-loading" id="node-modal-loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <div class="loading-title">正在自动探测本机代理端口与节点...</div>
+          <div class="loading-desc">正在扫描 Clash Verge / Mihomo / v2rayN 等代理客户端配置与实时在线节点</div>
+        </div>
+
+        <div id="node-modal-main-content">
         <!-- Lock Banner when Node is Locked -->
         <div class="node-lock-banner" id="node-locked-banner" style="display: none;">
           <div class="lock-banner-left">
@@ -403,6 +411,8 @@
 
         <!-- Node Grid -->
         <div class="node-grid" id="node-grid-container"></div>
+
+        </div><!-- /#node-modal-main-content -->
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" onclick="closeNodeModal()">关闭</button>
