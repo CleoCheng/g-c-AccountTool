@@ -71,3 +71,45 @@ def test_2fa_secret_auto_strip_spaces_and_uppercase(tmp_path: Path):
     assert saved["ok"] is True
     assert saved["account"]["secret_key"] == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
     assert saved["account"]["initial_secret_key"] == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+
+
+def test_api_health_status_lifecycle_and_dashboard_filter(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    api = AccountApi(data_dir=data_dir)
+
+    res = api.save_account({
+        "account_type": "ChatGPT",
+        "account": "user1@openai.com",
+        "password": "Password999",
+        "health_status": "可用",
+    })
+    assert res["ok"] is True
+    acc_id = res["account"]["id"]
+    assert res["account"]["health_status"] == "可用"
+
+    # Set health status to 验证
+    set_res = api.set_health_status(acc_id, "验证")
+    assert set_res["ok"] is True
+    assert set_res["account"]["health_status"] == "验证"
+
+    # Add another account with 封号
+    api.save_account({
+        "account_type": "Google",
+        "account": "user2@gmail.com",
+        "password": "Password888",
+        "health_status": "封号",
+    })
+
+    # Dashboard with health_status filter
+    dash_verify = api.get_dashboard(health_status="验证")
+    assert len(dash_verify["accounts"]) == 1
+    assert dash_verify["accounts"][0]["account"] == "user1@openai.com"
+
+    dash_banned = api.get_dashboard(health_status="封号")
+    assert len(dash_banned["accounts"]) == 1
+    assert dash_banned["accounts"][0]["account"] == "user2@gmail.com"
+
+    dash_all = api.get_dashboard(health_status="All")
+    assert len(dash_all["accounts"]) == 2
+    assert dash_all["stats"]["health"]["验证"] == 1
+    assert dash_all["stats"]["health"]["封号"] == 1

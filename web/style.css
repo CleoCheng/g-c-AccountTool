@@ -185,6 +185,30 @@ body {
   background-color: var(--color-danger);
 }
 
+.dot-available {
+  background-color: #10b981;
+}
+
+.dot-banned {
+  background-color: #ef4444;
+}
+
+.dot-captcha {
+  background-color: #f59e0b;
+}
+
+.dot-sms {
+  background-color: #a855f7;
+}
+
+.dot-verify {
+  background-color: #0ea5e9;
+}
+
+.dot-unavailable {
+  background-color: #94a3b8;
+}
+
 .top-actions {
   display: flex;
   align-items: center;
@@ -784,7 +808,9 @@ body {
 .u-meta-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1509,4 +1535,277 @@ body {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 12px;
   scrollbar-width: thin;
+}
+
+/* ============================================================
+   HEALTH STATUS & CARD MULTI-LINE RESTRUCTURE
+   ============================================================ */
+
+/* Card Health Borders */
+.u-card.health-border-available {
+  border-left: 3px solid #10b981;
+}
+
+.u-card.health-border-banned {
+  border-left: 3px solid #ef4444;
+  opacity: 0.92;
+}
+
+.u-card.health-border-captcha {
+  border-left: 3px solid #f59e0b;
+}
+
+.u-card.health-border-sms {
+  border-left: 3px solid #a855f7;
+}
+
+.u-card.health-border-verify {
+  border-left: 3px solid #0ea5e9;
+}
+
+.u-card.health-border-unavailable {
+  border-left: 3px solid #94a3b8;
+  opacity: 0.88;
+}
+
+/* 1-Click Quick Health Status Dropdown */
+.u-health-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.u-health-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2.5px 8.5px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.14s ease;
+  user-select: none;
+}
+
+.u-health-btn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-0.5px);
+}
+
+.u-health-btn.health-available {
+  background: rgba(16, 185, 129, 0.13);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.u-health-btn.health-banned {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.u-health-btn.health-captcha {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.u-health-btn.health-sms {
+  background: rgba(168, 85, 247, 0.14);
+  color: #a855f7;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.u-health-btn.health-verify {
+  background: rgba(14, 165, 233, 0.14);
+  color: #0ea5e9;
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+.u-health-btn.health-unavailable {
+  background: rgba(148, 163, 184, 0.13);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.health-arrow {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.u-health-popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+  min-width: 175px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: popoverFadeIn 0.12s ease-out;
+}
+
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.popover-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 4px 8px 4px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 3px;
+}
+
+.health-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.health-opt:hover {
+  background: var(--bg-elevated);
+}
+
+.health-opt.active {
+  background: var(--accent-glow);
+  font-weight: 700;
+}
+
+/* Line 2: Dedicated Status Row (分行显示) */
+.u-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 1px 0;
+  font-size: 11.5px;
+}
+
+.u-status-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.u-status-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.u-usage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.u-usage-badge.deactivated {
+  color: var(--color-danger);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Line 4: Device Chip & Meta Footer (设备码独立展示，永不换行) */
+.u-device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2.5px 8px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: var(--color-totp);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.device-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.u-meta-sub {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Modal Health Selector */
+.health-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.type-radio input:checked ~ .pill-available {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.type-radio input:checked ~ .pill-banned {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.type-radio input:checked ~ .pill-captcha {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.type-radio input:checked ~ .pill-sms {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+
+.type-radio input:checked ~ .pill-verify {
+  border-color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0ea5e9;
+}
+
+.type-radio input:checked ~ .pill-unavailable {
+  border-color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
 }

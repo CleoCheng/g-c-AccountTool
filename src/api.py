@@ -36,9 +36,21 @@ class AccountApi:
         except Exception:
             return dict(DEFAULT_SETTINGS)
 
-    def get_dashboard(self, account_type: str = "All", search: str = "", status: str = "All") -> dict:
+    def get_dashboard(
+        self,
+        account_type: str = "All",
+        search: str = "",
+        status: str = "All",
+        health_status: str = "All",
+    ) -> dict:
         status_filter = "" if status in ("", "All") else status
-        accounts = self.db.list_accounts(account_type=account_type, search=search, status=status_filter)
+        health_filter = "" if health_status in ("", "All") else health_status
+        accounts = self.db.list_accounts(
+            account_type=account_type,
+            search=search,
+            status=status_filter,
+            health_status=health_filter,
+        )
         stats = self.db.get_stats()
         settings = self._ensure_settings()
         now = int(time.time())
@@ -142,6 +154,12 @@ class AccountApi:
 
     def toggle_password_modified(self, account_id: int, modified: bool | int) -> dict:
         updated = self.db.set_password_modified(int(account_id), modified)
+        if not updated:
+            return {"ok": False, "error": "账号不存在"}
+        return {"ok": True, "account": updated}
+
+    def set_health_status(self, account_id: int, health_status: str) -> dict:
+        updated = self.db.set_health_status(int(account_id), health_status)
         if not updated:
             return {"ok": False, "error": "账号不存在"}
         return {"ok": True, "account": updated}

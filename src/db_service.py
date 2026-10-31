@@ -13,6 +13,9 @@ from src.totp_service import (
 )
 
 
+VALID_HEALTH_STATUSES = ["可用", "不可用", "封号", "人机", "短信", "验证"]
+
+
 def _parse_date(d_str: str) -> date | None:
     if not d_str or not d_str.strip():
         return None
@@ -75,6 +78,7 @@ class DatabaseService:
                 CREATE TABLE IF NOT EXISTS accounts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     account_type TEXT NOT NULL DEFAULT 'ChatGPT',
+                    health_status TEXT NOT NULL DEFAULT '可用',
                     account TEXT NOT NULL,
                     password TEXT NOT NULL,
                     password_modified INTEGER DEFAULT 0,
@@ -97,6 +101,7 @@ class DatabaseService:
                 row["name"] for row in conn.execute("PRAGMA table_info(accounts);").fetchall()
             }
             migrations = {
+                "health_status": "ALTER TABLE accounts ADD COLUMN health_status TEXT DEFAULT '可用'",
                 "password_modified": "ALTER TABLE accounts ADD COLUMN password_modified INTEGER DEFAULT 0",
                 "initial_secret_key": "ALTER TABLE accounts ADD COLUMN initial_secret_key TEXT DEFAULT ''",
                 "twofa_modified": "ALTER TABLE accounts ADD COLUMN twofa_modified INTEGER DEFAULT 0",
@@ -107,6 +112,9 @@ class DatabaseService:
             for col_name, ddl in migrations.items():
                 if col_name not in existing_cols:
                     conn.execute(ddl)
+
+            # Ensure any null or empty health_status gets default '可用'
+            conn.execute("UPDATE accounts SET health_status = '可用' WHERE health_status IS NULL OR health_status = ''")
 
             # Backfill permanent paired fingerprint config for any account missing it
             rows = conn.execute(
@@ -136,6 +144,7 @@ class DatabaseService:
 
     def _enrich_row(self, row: sqlite3.Row) -> dict:
         item = dict(row)
+        item["health_status"] = (item.get("health_status") or "可用").strip()
         item["password_modified"] = int(item.get("password_modified") or 0)
         item["twofa_modified"] = int(item.get("twofa_modified") or 0)
         item["secret_key"] = normalize_secret(item.get("secret_key") or "")
@@ -163,7 +172,13 @@ class DatabaseService:
         item["fp_config"] = fp_cfg
         return item
 
-    def list_accounts(self, account_type: str = "", search: str = "", status: str = "") -> list[dict]:
+    def list_accounts(
+        self,
+        account_type: str = "",
+        search: str = "",
+        status: str = "",
+        health_status: str = "",
+    ) -> list[dict]:
         query = "SELECT * FROM accounts WHERE 1=1"
         params: list = []
         if account_type and account_type != "All":
@@ -173,13 +188,16 @@ class DatabaseService:
             query += " AND (deactivated_date IS NULL OR deactivated_date = '')"
         elif status == "deactivated":
             query += " AND (deactivated_date IS NOT NULL AND deactivated_date != '')"
+        if health_status and health_status != "All":
+            query += " AND health_status = ?"
+            params.append(health_status)
         if search and search.strip():
             kw = f"%{search.strip()}%"
             query += (
                 " AND (account LIKE ? OR recovery_email LIKE ? OR reg_region LIKE ? "
-                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ?)"
+                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? OR health_status LIKE ?)"
             )
-            params.extend([kw, kw, kw, kw, kw, kw, kw])
+            params.extend([kw, kw, kw, kw, kw, kw, kw, kw])
         query += " ORDER BY id ASC"
 
         with self._connect() as conn:
@@ -193,6 +211,9 @@ class DatabaseService:
 
     def _prepare_fields(self, data: dict) -> tuple:
         account_type = (data.get("account_type") or "ChatGPT").strip()
+        health_status = (data.get("health_status") or "可用").strip()
+        if health_status not in VALID_HEALTH_STATUSES:
+            health_status = "可用"
         account = (data.get("account") or "").strip()
         password = (data.get("password") or "").strip()
         password_modified = 1 if data.get("password_modified") in (1, True, "1", "true") else 0
@@ -209,6 +230,7 @@ class DatabaseService:
         note = (data.get("note") or "").strip()
         return (
             account_type,
+            health_status,
             account,
             password,
             password_modified,
@@ -230,15 +252,15 @@ class DatabaseService:
             cur = conn.execute(
                 """
                 INSERT INTO accounts (
-                    account_type, account, password, password_modified, recovery_email,
+                    account_type, health_status, account, password, password_modified, recovery_email,
                     secret_key, initial_secret_key, twofa_modified,
                     purchase_date, deactivated_date, reg_year, reg_region, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 fields,
             )
             new_id = cur.lastrowid
-            fp = generate_fingerprint_config(new_id, fields[1], proxy=proxy)
+            fp = generate_fingerprint_config(new_id, fields[2], proxy=proxy)
             conn.execute(
                 "UPDATE accounts SET fp_config_json = ? WHERE id = ?",
                 (json.dumps(fp, ensure_ascii=False), new_id),
@@ -278,13 +300,15 @@ class DatabaseService:
         if not existing:
             return None
         merged = dict(data)
+        if "health_status" not in merged:
+            merged["health_status"] = existing.get("health_status", "可用")
         if "password_modified" not in merged:
             if merged.get("password") and existing.get("password") and merged["password"].strip() != existing["password"]:
                 merged["password_modified"] = 1
             else:
                 merged["password_modified"] = existing.get("password_modified", 0)
         fields = self._prepare_fields(merged)
-        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[1])
+        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[2])
         if not fp_cfg.get("node_locked"):
             if "proxy" in data:
                 fp_cfg["proxy"] = (data.get("proxy") or "").strip()
@@ -296,6 +320,7 @@ class DatabaseService:
                 """
                 UPDATE accounts SET
                     account_type = ?,
+                    health_status = ?,
                     account = ?,
                     password = ?,
                     password_modified = ?,
@@ -405,6 +430,18 @@ class DatabaseService:
             row = conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
         return self._enrich_row(row) if row else None
 
+    def set_health_status(self, account_id: int, health_status: str) -> dict | None:
+        status_val = (health_status or "可用").strip()
+        if status_val not in VALID_HEALTH_STATUSES:
+            status_val = "可用"
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET health_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status_val, int(account_id)),
+            )
+            row = conn.execute("SELECT * FROM accounts WHERE id = ?", (int(account_id),)).fetchone()
+        return self._enrich_row(row) if row else None
+
     def delete_account(self, account_id: int) -> bool:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
@@ -418,6 +455,10 @@ class DatabaseService:
             deactivated = conn.execute(
                 "SELECT COUNT(*) FROM accounts WHERE deactivated_date IS NOT NULL AND deactivated_date != ''"
             ).fetchone()[0]
+            health_counts = {}
+            for hs in VALID_HEALTH_STATUSES:
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (hs,)).fetchone()[0]
+                health_counts[hs] = cnt
         return {
             "total": total,
             "google": google,
@@ -425,6 +466,7 @@ class DatabaseService:
             "other": total - google - chatgpt,
             "active": total - deactivated,
             "deactivated": deactivated,
+            "health": health_counts,
         }
 
     def refresh_totp_codes(self) -> dict[int, dict]:

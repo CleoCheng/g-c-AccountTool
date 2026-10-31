@@ -101,3 +101,61 @@ def test_usage_duration_and_twofa_modified_toggle(tmp_path: Path):
         },
     )
     assert updated["password_modified"] == 1
+
+
+def test_account_health_status_and_filtering(tmp_path: Path):
+    db_file = tmp_path / "data" / "accounts.db"
+    svc = DatabaseService(db_file)
+
+    # 1. Default health_status is '可用'
+    a1 = svc.add_account({
+        "account_type": "ChatGPT",
+        "account": "normal@chatgpt.com",
+        "password": "Password123!",
+    })
+    assert a1["health_status"] == "可用"
+
+    # 2. Add with explicit health_status
+    a2 = svc.add_account({
+        "account_type": "ChatGPT",
+        "account": "banned@chatgpt.com",
+        "password": "Password123!",
+        "health_status": "封号",
+    })
+    assert a2["health_status"] == "封号"
+
+    a3 = svc.add_account({
+        "account_type": "Google",
+        "account": "captcha@gmail.com",
+        "password": "Password123!",
+        "health_status": "人机",
+    })
+    assert a3["health_status"] == "人机"
+
+    # 3. Quick toggle via set_health_status
+    up1 = svc.set_health_status(a1["id"], "短信")
+    assert up1["health_status"] == "短信"
+
+    up1_back = svc.set_health_status(a1["id"], "可用")
+    assert up1_back["health_status"] == "可用"
+
+    # 4. Filter by health_status
+    availables = svc.list_accounts(health_status="可用")
+    assert len(availables) == 1
+    assert availables[0]["account"] == "normal@chatgpt.com"
+
+    banned_list = svc.list_accounts(health_status="封号")
+    assert len(banned_list) == 1
+    assert banned_list[0]["account"] == "banned@chatgpt.com"
+
+    captcha_list = svc.list_accounts(health_status="人机")
+    assert len(captcha_list) == 1
+    assert captcha_list[0]["account"] == "captcha@gmail.com"
+
+    # 5. Stats breakdown
+    stats = svc.get_stats()
+    assert stats["total"] == 3
+    assert stats["health"]["可用"] == 1
+    assert stats["health"]["封号"] == 1
+    assert stats["health"]["人机"] == 1
+    assert stats["health"]["短信"] == 0

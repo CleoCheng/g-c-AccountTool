@@ -26,7 +26,7 @@
       </div>
 
       <div class="stats-bar">
-        <div class="stat-pill" onclick="setFilterType('All'); setStatusFilter('All')">
+        <div class="stat-pill" onclick="setFilterType('All'); setHealthFilter('All'); setStatusFilter('All')">
           <span class="stat-label">总计</span>
           <span class="stat-value" id="stat-total">0</span>
         </div>
@@ -40,15 +40,35 @@
           <span class="stat-label">Google</span>
           <span class="stat-value" id="stat-google">0</span>
         </div>
-        <div class="stat-pill" onclick="setStatusFilter('active')">
-          <span class="stat-dot dot-active"></span>
-          <span class="stat-label">使用中</span>
-          <span class="stat-value" id="stat-active">0</span>
+        <div class="stat-pill" onclick="setHealthFilter('可用')" title="点击筛选「可用」账号">
+          <span class="stat-dot dot-available"></span>
+          <span class="stat-label">可用</span>
+          <span class="stat-value" id="stat-health-available">0</span>
         </div>
-        <div class="stat-pill" onclick="setStatusFilter('deactivated')">
-          <span class="stat-dot dot-deactivated"></span>
-          <span class="stat-label">已停用</span>
-          <span class="stat-value" id="stat-deactivated">0</span>
+        <div class="stat-pill" onclick="setHealthFilter('封号')" title="点击筛选「封号」账号">
+          <span class="stat-dot dot-banned"></span>
+          <span class="stat-label">封号</span>
+          <span class="stat-value" id="stat-health-banned">0</span>
+        </div>
+        <div class="stat-pill" onclick="setHealthFilter('人机')" title="点击筛选「人机验证」账号">
+          <span class="stat-dot dot-captcha"></span>
+          <span class="stat-label">人机</span>
+          <span class="stat-value" id="stat-health-captcha">0</span>
+        </div>
+        <div class="stat-pill" onclick="setHealthFilter('短信')" title="点击筛选「短信验证」账号">
+          <span class="stat-dot dot-sms"></span>
+          <span class="stat-label">短信</span>
+          <span class="stat-value" id="stat-health-sms">0</span>
+        </div>
+        <div class="stat-pill" onclick="setHealthFilter('验证')" title="点击筛选「邮箱/其他验证」账号">
+          <span class="stat-dot dot-verify"></span>
+          <span class="stat-label">验证</span>
+          <span class="stat-value" id="stat-health-verify">0</span>
+        </div>
+        <div class="stat-pill" onclick="setHealthFilter('不可用')" title="点击筛选「不可用」账号">
+          <span class="stat-dot dot-unavailable"></span>
+          <span class="stat-label">不可用</span>
+          <span class="stat-value" id="stat-health-unavailable">0</span>
         </div>
       </div>
 
@@ -88,7 +108,7 @@
     <section class="toolbar">
       <div class="filter-group">
         <div class="segmented" id="filter-tabs">
-          <button class="seg-btn active" data-type="All" onclick="setFilterType('All')">全部</button>
+          <button class="seg-btn active" data-type="All" onclick="setFilterType('All')">全部平台</button>
           <button class="seg-btn" data-type="ChatGPT" onclick="setFilterType('ChatGPT')">
             <span class="badge-dot dot-chatgpt"></span>ChatGPT
           </button>
@@ -97,10 +117,26 @@
           </button>
         </div>
 
-        <div class="segmented" id="status-tabs">
-          <button class="seg-btn active" data-status="All" onclick="setStatusFilter('All')">全部状态</button>
-          <button class="seg-btn" data-status="active" onclick="setStatusFilter('active')">使用中</button>
-          <button class="seg-btn" data-status="deactivated" onclick="setStatusFilter('deactivated')">已停用</button>
+        <div class="segmented" id="health-tabs">
+          <button class="seg-btn active" data-health="All" onclick="setHealthFilter('All')">全部状态</button>
+          <button class="seg-btn" data-health="可用" onclick="setHealthFilter('可用')">
+            <span class="badge-dot dot-available"></span>可用
+          </button>
+          <button class="seg-btn" data-health="封号" onclick="setHealthFilter('封号')">
+            <span class="badge-dot dot-banned"></span>封号
+          </button>
+          <button class="seg-btn" data-health="人机" onclick="setHealthFilter('人机')">
+            <span class="badge-dot dot-captcha"></span>人机
+          </button>
+          <button class="seg-btn" data-health="短信" onclick="setHealthFilter('短信')">
+            <span class="badge-dot dot-sms"></span>短信
+          </button>
+          <button class="seg-btn" data-health="验证" onclick="setHealthFilter('验证')">
+            <span class="badge-dot dot-verify"></span>验证
+          </button>
+          <button class="seg-btn" data-health="不可用" onclick="setHealthFilter('不可用')">
+            <span class="badge-dot dot-unavailable"></span>不可用
+          </button>
         </div>
       </div>
 
@@ -247,6 +283,37 @@
                   <span class="switch-text">2FA已改</span>
                 </label>
               </div>
+            </div>
+          </div>
+
+          <!-- Availability / Health Status Selector (维护入口) -->
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label>账号可用状态 (维护入口)</label>
+            <div class="health-selector" id="field-health-selector">
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="可用" id="health-radio-available" checked />
+                <span class="radio-pill pill-available"><span class="badge-dot dot-available"></span>可用</span>
+              </label>
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="封号" id="health-radio-banned" />
+                <span class="radio-pill pill-banned"><span class="badge-dot dot-banned"></span>封号</span>
+              </label>
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="人机" id="health-radio-captcha" />
+                <span class="radio-pill pill-captcha"><span class="badge-dot dot-captcha"></span>人机 (盾)</span>
+              </label>
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="短信" id="health-radio-sms" />
+                <span class="radio-pill pill-sms"><span class="badge-dot dot-sms"></span>短信验证</span>
+              </label>
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="验证" id="health-radio-verify" />
+                <span class="radio-pill pill-verify"><span class="badge-dot dot-verify"></span>邮箱/重置验证</span>
+              </label>
+              <label class="type-radio">
+                <input type="radio" name="health_status" value="不可用" id="health-radio-unavailable" />
+                <span class="radio-pill pill-unavailable"><span class="badge-dot dot-unavailable"></span>不可用 (闲置)</span>
+              </label>
             </div>
           </div>
 

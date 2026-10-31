@@ -1,9 +1,10 @@
 // State Management
 const state = {
   accounts: [],
-  stats: { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0 },
+  stats: { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, health: {} },
   filterType: "All",
   statusFilter: "All",
+  healthFilter: "All",
   searchQuery: "",
   theme: "dark",
   viewMode: "compact", // 'compact' | 'full' | 'table'
@@ -45,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadDashboard() {
   try {
-    const data = await callApi("get_dashboard", state.filterType, state.searchQuery, state.statusFilter);
+    const data = await callApi("get_dashboard", state.filterType, state.searchQuery, state.statusFilter, state.healthFilter);
     state.accounts = data.accounts || [];
     state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0 };
     if (data.settings) {
@@ -61,11 +62,82 @@ async function loadDashboard() {
 }
 
 function renderStats() {
-  document.getElementById("stat-total").textContent = state.stats.total || 0;
-  document.getElementById("stat-google").textContent = state.stats.google || 0;
-  document.getElementById("stat-chatgpt").textContent = state.stats.chatgpt || 0;
-  document.getElementById("stat-active").textContent = state.stats.active || 0;
-  document.getElementById("stat-deactivated").textContent = state.stats.deactivated || 0;
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || 0;
+  };
+  setEl("stat-total", state.stats.total);
+  setEl("stat-google", state.stats.google);
+  setEl("stat-chatgpt", state.stats.chatgpt);
+  const h = state.stats.health || {};
+  setEl("stat-health-available", h["可用"]);
+  setEl("stat-health-banned", h["封号"]);
+  setEl("stat-health-captcha", h["人机"]);
+  setEl("stat-health-sms", h["短信"]);
+  setEl("stat-health-verify", h["验证"]);
+  setEl("stat-health-unavailable", h["不可用"]);
+}
+
+function getHealthMeta(status) {
+  switch (status) {
+    case "封号":
+      return { key: "banned", label: "封号", dotClass: "dot-banned" };
+    case "人机":
+      return { key: "captcha", label: "人机", dotClass: "dot-captcha" };
+    case "短信":
+      return { key: "sms", label: "短信", dotClass: "dot-sms" };
+    case "验证":
+      return { key: "verify", label: "验证", dotClass: "dot-verify" };
+    case "不可用":
+      return { key: "unavailable", label: "不可用", dotClass: "dot-unavailable" };
+    case "可用":
+    default:
+      return { key: "available", label: "可用", dotClass: "dot-available" };
+  }
+}
+
+function toggleHealthMenu(event, accountId) {
+  event.stopPropagation();
+  const menuEl = document.getElementById(`health-menu-${accountId}`);
+  if (!menuEl) return;
+  const isShown = menuEl.style.display === "block";
+  closeAllHealthPopovers();
+  if (!isShown) {
+    menuEl.style.display = "block";
+  }
+}
+
+function closeAllHealthPopovers() {
+  document.querySelectorAll(".u-health-popover").forEach((el) => {
+    el.style.display = "none";
+  });
+}
+
+document.addEventListener("click", () => {
+  closeAllHealthPopovers();
+});
+
+async function onQuickSelectHealth(accountId, nextStatus) {
+  closeAllHealthPopovers();
+  try {
+    const res = await callApi("set_health_status", accountId, nextStatus);
+    if (res && res.ok) {
+      showToast(`✓ 已标记账号状态为「${nextStatus}」`);
+      await loadDashboard();
+    } else {
+      showToast(res.error || "状态更新失败");
+    }
+  } catch (err) {
+    showToast("状态更新异常: " + err.message);
+  }
+}
+
+function setHealthFilter(health) {
+  state.healthFilter = health;
+  document.querySelectorAll("#health-tabs .seg-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.health === health);
+  });
+  loadDashboard();
 }
 
 function escapeHtml(str) {
@@ -173,6 +245,8 @@ function renderCardItem(item, remaining) {
       ? usage.duration_text
       : usage.status_label;
 
+  const hMeta = getHealthMeta(item.health_status || "可用");
+
   const isPwdModified = !!item.password_modified;
   const pwdFlagHtml = `<button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="点击切换密码是否已修改标记">
       ${isPwdModified ? "密码已改 ✓" : "初始密码"}
@@ -193,6 +267,38 @@ function renderCardItem(item, remaining) {
   const metaLeft = getUnifiedMetaSummary(item);
   const showDrawer = state.viewMode === "full" || !!state.expandedCards[item.id];
 
+  // 1-Click Quick Health Status Dropdown
+  const healthBadgeHtml = `
+    <div class="u-health-dropdown" data-acc-id="${item.id}">
+      <button class="u-health-btn health-${hMeta.key}" onclick="toggleHealthMenu(event, ${item.id})" title="点击快捷维护账号可用状态">
+        <span class="badge-dot ${hMeta.dotClass}"></span>
+        <span class="health-btn-label">${escapeHtml(hMeta.label)}</span>
+        <span class="health-arrow">▾</span>
+      </button>
+      <div class="u-health-popover" id="health-menu-${item.id}" style="display: none;">
+        <div class="popover-title">维护账号可用状态</div>
+        <button class="health-opt ${hMeta.key === 'available' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '可用')">
+          <span class="badge-dot dot-available"></span><span>可用 (正常使用)</span>
+        </button>
+        <button class="health-opt ${hMeta.key === 'banned' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '封号')">
+          <span class="badge-dot dot-banned"></span><span>封号 (官方封禁)</span>
+        </button>
+        <button class="health-opt ${hMeta.key === 'captcha' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '人机')">
+          <span class="badge-dot dot-captcha"></span><span>人机 (盾 / 验证码)</span>
+        </button>
+        <button class="health-opt ${hMeta.key === 'sms' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '短信')">
+          <span class="badge-dot dot-sms"></span><span>短信 (手机验证)</span>
+        </button>
+        <button class="health-opt ${hMeta.key === 'verify' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '验证')">
+          <span class="badge-dot dot-verify"></span><span>验证 (邮箱/密码)</span>
+        </button>
+        <button class="health-opt ${hMeta.key === 'unavailable' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '不可用')">
+          <span class="badge-dot dot-unavailable"></span><span>不可用 (闲置停用)</span>
+        </button>
+      </div>
+    </div>
+  `;
+
   // Detail Drawer Content
   let drawerHtml = "";
   if (showDrawer) {
@@ -203,6 +309,16 @@ function renderCardItem(item, remaining) {
 
     drawerHtml = `
       <div class="u-detail-drawer">
+        <div class="detail-row">
+          <span class="detail-key">可用状态</span>
+          <span class="detail-val" style="display:inline-flex;align-items:center;gap:6px;">
+            <span class="badge-dot ${hMeta.dotClass}"></span>
+            <strong>${escapeHtml(hMeta.label)}</strong>
+          </span>
+          <div class="detail-ops">
+            <button class="u-peek-btn" onclick="openEditModal(${item.id})">在表单维护</button>
+          </div>
+        </div>
         <div class="detail-row">
           <span class="detail-key">指纹环境</span>
           <span class="detail-val">[${escapeHtml(fpInfo.code)}] ${escapeHtml(fpInfo.shortDesc)}</span>
@@ -269,9 +385,21 @@ function renderCardItem(item, remaining) {
     `;
   }
 
+  // Device Chip (Prominent, dedicated flex chip that never gets crushed)
+  const deviceChipHtml = item.note
+    ? `<span class="u-device-chip" title="所在设备/备注: ${escapeHtml(item.note)}">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        <span class="device-text">${escapeHtml(item.note)}</span>
+      </span>`
+    : "";
+
   return `
-    <article class="u-card ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
-      <!-- Row 1: Identity & Status -->
+    <article class="u-card health-border-${hMeta.key} ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
+      <!-- Line 1: Header (Account Identity & 1-Click Health Status Badge) -->
       <div class="u-row-top">
         <div class="u-identity">
           <span class="u-platform ${escapeHtml(item.account_type)}">${escapeHtml(item.account_type)}</span>
@@ -285,13 +413,31 @@ function renderCardItem(item, remaining) {
         </div>
 
         <div class="u-top-right">
-          ${pwdFlagHtml}
-          ${twofaFlagHtml}
-          <span class="u-status ${usage.status}">${escapeHtml(statusText)}</span>
+          ${healthBadgeHtml}
         </div>
       </div>
 
-      <!-- Row 2: Unified TOTP + 1-Click Copy + Fingerprint Browser Launch Strip -->
+      <!-- Line 2: Dedicated Status Row (状态与安全标记分行独立展示，不再挤占设备码) -->
+      <div class="u-status-row">
+        <div class="u-status-left">
+          ${pwdFlagHtml}
+          ${twofaFlagHtml}
+          <span class="u-usage-badge ${usage.status}">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            ${escapeHtml(statusText)}
+          </span>
+        </div>
+        <div class="u-status-right">
+          <button class="u-node-pill ${fpInfo.locked ? "locked" : ""}" onclick="openNodeModal(${item.id})" title="专属代理节点">
+            ${escapeHtml(nodePillText)}
+          </button>
+        </div>
+      </div>
+
+      <!-- Line 3: Unified TOTP + 1-Click Copy + Fingerprint Browser Launch Strip -->
       <div class="u-action-bar">
         <div class="u-totp-box" onclick="copyTotpCode(null, ${item.id})" title="点击复制 6 位 2FA 动态验证码">
           <span class="u-totp-label">2FA码</span>
@@ -315,14 +461,11 @@ function renderCardItem(item, remaining) {
 
       ${drawerHtml}
 
-      <!-- Row 3: Unified Single-Line Footer (Node Lock Pill + Meta + Tools) -->
+      <!-- Line 4: Dedicated Footer (Device Code / Note & Meta Info + Tools) -->
       <div class="u-footer">
         <div class="u-meta-left">
-          <button class="u-node-pill ${fpInfo.locked ? "locked" : ""}" onclick="openNodeModal(${item.id})" title="点击查看或锁定该账号专属代理节点">
-            ${escapeHtml(nodePillText)}
-          </button>
-          <span class="u-meta-item">${escapeHtml(metaLeft)}</span>
-          ${item.note ? `<span class="u-meta-note">· ${escapeHtml(item.note)}</span>` : ""}
+          ${deviceChipHtml}
+          ${metaLeft ? `<span class="u-meta-item">${escapeHtml(metaLeft)}</span>` : ""}
         </div>
 
         <div class="u-card-tools">
@@ -348,6 +491,7 @@ function renderTableView(remaining) {
       const hasTotp = item.secret_key && item.totp && item.totp.valid;
       const totpFormatted = hasTotp ? formatTotpCode(item.totp.code) : "-";
       const usage = item.usage || { status: "active", status_label: "使用中", duration_text: "使用中" };
+      const hMeta = getHealthMeta(item.health_status || "可用");
       const isPwdModified = !!item.password_modified;
       const is2faModified = !!item.twofa_modified;
       const metaLeft = getUnifiedMetaSummary(item);
@@ -355,6 +499,48 @@ function renderTableView(remaining) {
       const nodePillText = fpInfo.proxyNode
         ? `${fpInfo.locked ? "🔒" : "🔓"} ${fpInfo.proxyNode}`
         : "🔓 绑定节点";
+
+      const healthBadgeHtml = `
+        <div class="u-health-dropdown" data-acc-id="${item.id}">
+          <button class="u-health-btn health-${hMeta.key}" onclick="toggleHealthMenu(event, ${item.id})" title="点击快捷维护账号可用状态">
+            <span class="badge-dot ${hMeta.dotClass}"></span>
+            <span class="health-btn-label">${escapeHtml(hMeta.label)}</span>
+            <span class="health-arrow">▾</span>
+          </button>
+          <div class="u-health-popover" id="health-menu-${item.id}" style="display: none;">
+            <div class="popover-title">维护可用状态</div>
+            <button class="health-opt ${hMeta.key === 'available' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '可用')">
+              <span class="badge-dot dot-available"></span><span>可用</span>
+            </button>
+            <button class="health-opt ${hMeta.key === 'banned' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '封号')">
+              <span class="badge-dot dot-banned"></span><span>封号</span>
+            </button>
+            <button class="health-opt ${hMeta.key === 'captcha' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '人机')">
+              <span class="badge-dot dot-captcha"></span><span>人机</span>
+            </button>
+            <button class="health-opt ${hMeta.key === 'sms' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '短信')">
+              <span class="badge-dot dot-sms"></span><span>短信</span>
+            </button>
+            <button class="health-opt ${hMeta.key === 'verify' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '验证')">
+              <span class="badge-dot dot-verify"></span><span>验证</span>
+            </button>
+            <button class="health-opt ${hMeta.key === 'unavailable' ? 'active' : ''}" onclick="onQuickSelectHealth(${item.id}, '不可用')">
+              <span class="badge-dot dot-unavailable"></span><span>不可用</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      const deviceChipHtml = item.note
+        ? `<span class="u-device-chip" title="所在设备/备注: ${escapeHtml(item.note)}">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span class="device-text">${escapeHtml(item.note)}</span>
+          </span>`
+        : `<span style="color:var(--text-muted);">-</span>`;
 
       return `
         <tr>
@@ -371,24 +557,28 @@ function renderTableView(remaining) {
             <button class="u-peek-btn" onclick="toggleReveal(${item.id}, 'account')">${showAcc ? "隐" : "明"}</button>
           </td>
           <td>
-            <span class="u-status ${usage.status}">${escapeHtml(usage.duration_text)}</span>
+            ${healthBadgeHtml}
           </td>
           <td>
-            <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" style="margin-right:4px;">
-              ${isPwdModified ? "密码已改 ✓" : "初始密码"}
-            </button>
-            ${
-              item.secret_key
-                ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})">
-                    ${is2faModified ? "2FA已改 ✓" : "初始2FA"}
-                  </button>`
-                : ""
-            }
+            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+              <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})">
+                ${isPwdModified ? "密码已改 ✓" : "初始密码"}
+              </button>
+              ${
+                item.secret_key
+                  ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})">
+                      ${is2faModified ? "2FA已改 ✓" : "初始2FA"}
+                    </button>`
+                  : ""
+              }
+              <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
+            </div>
           </td>
           <td>
             <span class="u-totp-code" id="totp-code-${item.id}" style="font-size:14px;cursor:pointer;" onclick="copyTotpCode(null, ${item.id})">${totpFormatted}</span>
             ${hasTotp ? `<span class="u-totp-sec">(<span class="card-rem-sec">${remaining}</span>s)</span>` : ""}
           </td>
+          <td>${deviceChipHtml}</td>
           <td>
             <div class="u-copy-group">
               <button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'account', '账号')">账号</button>
@@ -397,8 +587,6 @@ function renderTableView(remaining) {
               <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id}, this)">🌐 启动浏览器</button>
             </div>
           </td>
-          <td style="color: var(--text-secondary);">${escapeHtml(metaLeft)}</td>
-          <td style="font-weight:600;">${escapeHtml(item.note || "-")}</td>
           <td>
             <div class="u-card-tools">
               <button class="tool-link" onclick="openEditModal(${item.id})">编辑</button>
@@ -418,12 +606,11 @@ function renderTableView(remaining) {
           <th>平台</th>
           <th>指纹与锁定节点</th>
           <th>账号邮箱</th>
-          <th>状态 / 时长</th>
-          <th>2FA标记</th>
+          <th>可用状态</th>
+          <th>安全标记 / 时长</th>
           <th>动态验证码</th>
+          <th>所在设备 / 备注</th>
           <th>快捷操作与防关联浏览器</th>
-          <th>购入日期 / 地区</th>
-          <th>设备 / 备注</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -994,6 +1181,7 @@ function openAddModal() {
   document.getElementById("smart-paste-input").value = "";
   resetFeedbackText();
   resetFormFields();
+  setRadioHealth("可用");
   document.getElementById("account-modal").style.display = "flex";
   setTimeout(() => document.getElementById("smart-paste-input").focus(), 60);
 }
@@ -1009,6 +1197,7 @@ function openEditModal(accountId) {
 
   document.getElementById("field-id").value = item.id;
   setRadioType(item.account_type || "ChatGPT");
+  setRadioHealth(item.health_status || "可用");
   document.getElementById("field-password-modified").checked = !!item.password_modified;
   document.getElementById("field-twofa-modified").checked = !!item.twofa_modified;
   document.getElementById("field-account").value = item.account || "";
@@ -1040,9 +1229,21 @@ function closeAccountModal() {
   document.getElementById("account-modal").style.display = "none";
 }
 
+function setRadioHealth(status) {
+  const targetVal = status || "可用";
+  const radio = document.querySelector(`input[name="health_status"][value="${targetVal}"]`);
+  if (radio) radio.checked = true;
+}
+
+function getRadioHealth() {
+  const checked = document.querySelector('input[name="health_status"]:checked');
+  return checked ? checked.value : "可用";
+}
+
 function resetFormFields() {
   document.getElementById("field-id").value = "";
   setRadioType("ChatGPT");
+  setRadioHealth("可用");
   document.getElementById("field-password-modified").checked = false;
   document.getElementById("field-twofa-modified").checked = false;
   document.getElementById("field-account").value = "";
@@ -1150,6 +1351,7 @@ async function onSmartPasteInput(rawText) {
 
     const first = records[0];
     setRadioType(first.account_type || "ChatGPT");
+    setRadioHealth(first.health_status || "可用");
     if (first.password_modified) {
       document.getElementById("field-password-modified").checked = true;
     }
@@ -1222,6 +1424,7 @@ async function submitAccountForm(e) {
   const payload = {
     id: document.getElementById("field-id").value || null,
     account_type: getRadioType(),
+    health_status: getRadioHealth(),
     password_modified: document.getElementById("field-password-modified").checked ? 1 : 0,
     twofa_modified: document.getElementById("field-twofa-modified").checked ? 1 : 0,
     account: document.getElementById("field-account").value.trim(),
