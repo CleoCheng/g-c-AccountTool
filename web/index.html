@@ -8,8 +8,10 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- Top Header & Stats Bar -->
-    <header class="topbar">
+    <!-- Sticky Navigation Wrapper: 固定顶部主菜单和次级筛选菜单 -->
+    <div class="sticky-nav">
+      <!-- Top Header & Stats Bar -->
+      <header class="topbar">
       <div class="brand">
         <div class="brand-logo">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -139,6 +141,7 @@
         </div>
       </div>
     </section>
+    </div><!-- /.sticky-nav -->
 
     <!-- Main Account List Container -->
     <main class="content-area">
@@ -210,6 +213,7 @@
         <form id="account-form" onsubmit="submitAccountForm(event)">
           <input type="hidden" id="field-id" value="" />
 
+          <!-- Row 1: Account Type + Safety Switches -->
           <div class="form-row form-row-split">
             <div class="form-group">
               <label>账号归属类型</label>
@@ -230,8 +234,8 @@
             </div>
 
             <div class="form-group">
-              <label>安全资料修改标记</label>
-              <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+              <label>安全修改标记</label>
+              <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
                 <label class="switch-row">
                   <input type="checkbox" id="field-password-modified" />
                   <span class="switch-slider"></span>
@@ -246,18 +250,20 @@
             </div>
           </div>
 
+          <!-- Row 2: Account Email + Password -->
           <div class="form-grid-2">
             <div class="form-group">
-              <label for="field-account">主账号 / 邮箱 <span class="req">*</span></label>
+              <label for="field-account">主账号 / 登录邮箱 <span class="req">*</span></label>
               <input type="text" id="field-account" required placeholder="例如: example@icloud.com" />
             </div>
 
             <div class="form-group">
               <label for="field-password">登录密码 <span class="req">*</span></label>
-              <input type="text" id="field-password" required placeholder="输入或通过上方粘贴自动填充" />
+              <input type="text" id="field-password" required placeholder="输入或上方粘贴自动填充" />
             </div>
           </div>
 
+          <!-- Row 3: Current 2FA + Initial 2FA -->
           <div class="form-grid-2">
             <div class="form-group">
               <label for="field-secret">当前生效 / 新 2FA 秘钥 (用于生成6位动态码)</label>
@@ -281,48 +287,48 @@
             </div>
           </div>
 
-          <div class="form-grid-2">
+          <!-- Row 4: Dates & Recovery Email (3-column grid) -->
+          <div class="form-grid-3">
             <div class="form-group">
-              <label for="field-purchase-date">购买日期 (支持 2026-10-21 或 1021)</label>
+              <label for="field-purchase-date">购买日期 (如 2026-10-21 或 1021)</label>
               <input type="text" id="field-purchase-date" placeholder="例如: 2026-10-21" />
             </div>
 
             <div class="form-group">
               <label for="field-deactivated-date">
-                停用日期 (留空表示使用中)
-                <button type="button" class="btn-link" onclick="fillTodayDeactivated()" style="margin-left: 6px;">设为今日停用</button>
-                <button type="button" class="btn-link text-muted" onclick="document.getElementById('field-deactivated-date').value=''" style="margin-left: 4px;">清空(使用中)</button>
+                停用日期
+                <button type="button" class="btn-link" onclick="fillTodayDeactivated()" style="margin-left: 4px;">今日停用</button>
+                <button type="button" class="btn-link text-muted" onclick="document.getElementById('field-deactivated-date').value=''" style="margin-left: 4px;">清空</button>
               </label>
-              <input type="text" id="field-deactivated-date" placeholder="未停用请留空；如已停用填 2026-10-29" />
+              <input type="text" id="field-deactivated-date" placeholder="未停用留空；已停用填 2026-10-29" />
             </div>
-          </div>
 
-          <div class="form-grid-4">
             <div class="form-group">
               <label for="field-recovery">辅助邮箱 (Google)</label>
               <input type="text" id="field-recovery" placeholder="backup@mail.com" />
             </div>
+          </div>
 
-            <div class="form-group">
+          <!-- Row 5: Year, Region, Note, Proxy (4-column compact grid) -->
+          <div class="form-grid-4-compact">
+            <div class="form-group" style="flex: 0.85;">
               <label for="field-year">注册年份</label>
               <input type="text" id="field-year" placeholder="2024" />
             </div>
 
-            <div class="form-group">
+            <div class="form-group" style="flex: 0.85;">
               <label for="field-region">注册地区</label>
               <input type="text" id="field-region" placeholder="China / US" />
             </div>
 
-            <div class="form-group">
+            <div class="form-group" style="flex: 1.2;">
               <label for="field-note">备注 / 所在设备</label>
               <input type="text" id="field-note" placeholder="如：主力工作机 / MacBook" />
             </div>
-          </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="field-proxy">指纹浏览器专属代理 IP (选填，如 http://127.0.0.1:7890 或 socks5://127.0.0.1:10808，留空则直连)</label>
-              <input type="text" id="field-proxy" placeholder="选填：为该账号的独立指纹浏览器绑定专属代理" />
+            <div class="form-group" style="flex: 1.4;">
+              <label for="field-proxy">专属代理 IP (留空直连)</label>
+              <input type="text" id="field-proxy" placeholder="如 http://127.0.0.1:7890" />
             </div>
           </div>
 
