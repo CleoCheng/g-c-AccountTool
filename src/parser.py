@@ -155,17 +155,17 @@ def _parse_structured_block(block_text: str, default_year: int | None = None) ->
     if not lines:
         return None
 
-    # Stitch credential continuation lines (e.g. email on line 1, ----password----2fa on line 2)
-    # BUT do NOT stitch standalone deactivation date lines like '----1029' or '新2FA----...'
+    # Stitch credential continuation lines (e.g. email on line 1, ----password----2fa or |password|2fa on line 2)
+    # BUT do NOT stitch standalone deactivation date lines like '----1029', '|1029', '新2FA----...' or '新2FA|...'
     stitched_lines: list[str] = []
     for ln in lines:
-        if re.match(r"^-+\s*\d{4}\s*$", ln):
+        if re.match(r"^[-|]+\s*(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})\s*$", ln):
             stitched_lines.append(ln)
-        elif re.match(r"^(?:新2FA|new\s*2fa)\s*-+", ln, flags=re.IGNORECASE):
+        elif re.match(r"^(?:新2FA|new\s*2fa)\s*[-|]+", ln, flags=re.IGNORECASE):
             stitched_lines.append(ln)
-        elif ln.startswith("---") and stitched_lines:
+        elif (ln.startswith("---") or ln.startswith("|")) and stitched_lines:
             stitched_lines[-1] = stitched_lines[-1] + ln
-        elif stitched_lines and stitched_lines[-1].endswith("---"):
+        elif stitched_lines and (stitched_lines[-1].endswith("---") or stitched_lines[-1].endswith("|")):
             stitched_lines[-1] = stitched_lines[-1] + ln
         else:
             stitched_lines.append(ln)
@@ -179,15 +179,15 @@ def _parse_structured_block(block_text: str, default_year: int | None = None) ->
         if re.fullmatch(r"\d+\.", ln):
             continue
 
-        # Standalone trailing deactivation date: '----1029'
-        m_deact_only = re.fullmatch(r"-+\s*(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})", ln)
+        # Standalone trailing deactivation date: '----1029' or '|1029'
+        m_deact_only = re.fullmatch(r"[-|]+\s*(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})", ln)
         if m_deact_only and _is_mmdd_or_date(m_deact_only.group(1)):
             record["deactivated_date"] = normalize_date_str(m_deact_only.group(1), default_year)
             continue
 
-        # Date line: '1021' or '1019----1029'
+        # Date line: '1021', '1019----1029', or '1019|1029'
         m_dates = re.fullmatch(
-            r"(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})(?:\s*-+\s*(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}))?",
+            r"(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})(?:\s*[-|]+\s*(\d{4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}))?",
             ln,
         )
         if m_dates and _is_mmdd_or_date(m_dates.group(1)):
@@ -196,14 +196,14 @@ def _parse_structured_block(block_text: str, default_year: int | None = None) ->
                 record["deactivated_date"] = normalize_date_str(m_dates.group(2), default_year)
             continue
 
-        # New 2FA line: '新2FA----JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
-        m_new2fa = re.match(r"^(?:新2FA|new\s*2fa)\s*-+\s*(.+)$", ln, flags=re.IGNORECASE)
+        # New 2FA line: '新2FA----...' or '新2FA|...'
+        m_new2fa = re.match(r"^(?:新2FA|new\s*2fa)\s*[-|]+\s*(.+)$", ln, flags=re.IGNORECASE)
         if m_new2fa:
             new_2fa_secret = normalize_secret(m_new2fa.group(1))
             continue
 
-        # Main credential line containing '---' or '@'
-        if "---" in ln or ("@" in ln and not record["account"]):
+        # Main credential line containing '---' or '|' or '@'
+        if "---" in ln or "|" in ln or ("@" in ln and not record["account"]):
             parsed_cred = parse_single_line(ln, default_year=default_year)
             if parsed_cred and parsed_cred["account"]:
                 record["account_type"] = parsed_cred["account_type"]
@@ -253,14 +253,14 @@ def parse_account_text(raw_text: str, default_year: int | None = None) -> list[d
             return records
 
     # Case 2: Single structured block containing '新2FA' or standalone MMDD date line
-    if re.search(r"(?i)新2FA|new\s*2fa", normalized) or re.search(r"(?m)^\s*\d{4}(?:\s*-+\s*\d{4})?\s*$", normalized):
+    if re.search(r"(?i)新2FA|new\s*2fa", normalized) or re.search(r"(?m)^\s*\d{4}(?:\s*[-|]+\s*\d{4})?\s*$", normalized):
         rec = _parse_structured_block(normalized, default_year=default_year)
         if rec and rec["account"]:
             return [rec]
 
-    # Case 3: Standard line-by-line or cross-line wrapped records
-    stitched = re.sub(r"\n\s*(-{3,})", r"\1", normalized)
-    stitched = re.sub(r"(-{3,})\s*\n\s*", r"\1", stitched)
+    # Case 3: Standard line-by-line or cross-line wrapped records (support ---- or |)
+    stitched = re.sub(r"\n\s*(-{3,}|\|+)", r"\1", normalized)
+    stitched = re.sub(r"(-{3,}|\|+)\s*\n\s*", r"\1", stitched)
 
     records = []
     for line in stitched.split("\n"):

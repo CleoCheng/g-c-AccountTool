@@ -83,7 +83,7 @@ class AccountApi:
         records = parse_account_text(raw_text)
         if not records and raw_text and raw_text.strip():
             stripped = raw_text.strip()
-            m_new = re.match(r"^(?:新2FA|new\s*2fa)\s*-*\s*(.+)$", stripped, flags=re.IGNORECASE)
+            m_new = re.match(r"^(?:新2FA|new\s*2fa)\s*[-|]*\s*(.+)$", stripped, flags=re.IGNORECASE)
             candidate = m_new.group(1) if m_new else stripped
             if "@" not in candidate and _is_likely_base32_secret(candidate):
                 cleaned = normalize_secret(candidate)

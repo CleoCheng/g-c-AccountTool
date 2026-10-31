@@ -99,3 +99,58 @@ user_three@example.com----passThree789----JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
     assert items[2]["secret_key"] == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
     assert items[2]["initial_secret_key"] == ""
     assert items[2]["twofa_modified"] == 0
+
+
+def test_parse_pipe_delimiter_chatgpt_and_google():
+    # ChatGPT 3-field with |
+    raw_gpt = "alice_pipe@example.com|DemoPass#2026!|JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+    items_gpt = parse_account_text(raw_gpt)
+    assert len(items_gpt) == 1
+    assert items_gpt[0]["account_type"] == "ChatGPT"
+    assert items_gpt[0]["account"] == "alice_pipe@example.com"
+    assert items_gpt[0]["password"] == "DemoPass#2026!"
+    assert items_gpt[0]["secret_key"] == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+
+    # Google 6-field with | and optional spaces around |
+    raw_google = "bob_pipe@gmail.com | GoogleDemo#888 | recovery_pipe@example.org | gezdgnbvgy3tqojqgezdgnbvgy3tqojq | 2024 | US"
+    items_google = parse_account_text(raw_google)
+    assert len(items_google) == 1
+    assert items_google[0]["account_type"] == "Google"
+    assert items_google[0]["account"] == "bob_pipe@gmail.com"
+    assert items_google[0]["password"] == "GoogleDemo#888"
+    assert items_google[0]["recovery_email"] == "recovery_pipe@example.org"
+    assert items_google[0]["secret_key"] == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    assert items_google[0]["reg_year"] == "2024"
+    assert items_google[0]["reg_region"] == "US"
+
+
+def test_parse_pipe_delimiter_with_line_wrap():
+    raw = (
+        "bob_pipe@gmail.com|GoogleDemo#888|recovery_pipe@example.org\n"
+        "|gezdgnbvgy3tqojqgezdgnbvgy3tqojq|2024|US"
+    )
+    items = parse_account_text(raw)
+    assert len(items) == 1
+    assert items[0]["account"] == "bob_pipe@gmail.com"
+    assert items[0]["recovery_email"] == "recovery_pipe@example.org"
+    assert items[0]["secret_key"] == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+
+def test_parse_pipe_in_structured_blocks():
+    raw = """
+1019|1029
+user_pipe@example.com|passTwo456|JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
+新2FA|GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+Device-PC
+|1029
+"""
+    items = parse_account_text(raw, default_year=2026)
+    assert len(items) == 1
+    item = items[0]
+    assert item["account"] == "user_pipe@example.com"
+    assert item["purchase_date"] == "2026-10-19"
+    assert item["deactivated_date"] == "2026-10-29"
+    assert item["initial_secret_key"] == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+    assert item["secret_key"] == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    assert item["twofa_modified"] == 1
+    assert item["note"] == "Device-PC"
