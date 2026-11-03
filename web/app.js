@@ -3,6 +3,8 @@ const state = {
   accounts: [],
   stats: { total: 0, google: 0, chatgpt: 0, types: {}, devices: {}, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} },
   dicts: [],
+  attributes: [],
+  editingAttrId: null,
   filterType: "All",
   statusFilter: "All",
   healthFilter: "All",
@@ -67,6 +69,9 @@ async function loadDashboard() {
     state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, types: {}, devices: {}, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} };
     if (data.dicts) {
       state.dicts = data.dicts;
+    }
+    if (data.attributes) {
+      state.attributes = data.attributes;
     }
     if (data.settings) {
       state.settings = data.settings;
@@ -2022,13 +2027,21 @@ function switchSettingsTab(tabName) {
 
   const paneGeneral = document.getElementById("pane-general");
   const paneDicts = document.getElementById("pane-dicts");
+  const paneAttrs = document.getElementById("pane-attrs");
 
   if (tabName === "general") {
     if (paneGeneral) paneGeneral.style.display = "block";
     if (paneDicts) paneDicts.style.display = "none";
+    if (paneAttrs) paneAttrs.style.display = "none";
+  } else if (tabName === "attrs") {
+    if (paneGeneral) paneGeneral.style.display = "none";
+    if (paneDicts) paneDicts.style.display = "none";
+    if (paneAttrs) paneAttrs.style.display = "block";
+    renderAttributesPane();
   } else {
     if (paneGeneral) paneGeneral.style.display = "none";
     if (paneDicts) paneDicts.style.display = "block";
+    if (paneAttrs) paneAttrs.style.display = "none";
     const dictType = tabName.replace("dict-", "");
     renderDictPane(dictType);
   }
@@ -2386,3 +2399,330 @@ window.addEventListener("keydown", (e) => {
     }
   }
 });
+
+
+// ============================================================
+// ATTRIBUTE & PLATFORM BINDING CONTROLLER
+// ============================================================
+function renderAttributesPane() {
+  const tbody = document.getElementById("attrs-table-body");
+  if (!tbody) return;
+
+  const items = state.attributes || [];
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">暂无属性定义数据</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items
+    .map((item) => {
+      const isSys = !!item.is_system;
+      const typeBadge =
+        item.attr_type === "select"
+          ? `<span class="attr-type-badge type-select">下拉单选</span>${
+              item.dict_type ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(${escapeHtml(item.dict_type)})</span>` : ""
+            }`
+          : `<span class="attr-type-badge type-text">单行文本</span>`;
+
+      let platformBadges = "";
+      if (item.bound_platforms === "All") {
+        platformBadges = `<span class="attr-platform-tag tag-all">全部平台</span>`;
+      } else {
+        const list = Array.isArray(item.platforms_list)
+          ? item.platforms_list
+          : (() => {
+              try {
+                return JSON.parse(item.bound_platforms || "[]");
+              } catch (e) {
+                return [];
+              }
+            })();
+        if (list.length === 0) {
+          platformBadges = `<span class="attr-platform-tag tag-all">全部平台</span>`;
+        } else {
+          platformBadges = list
+            .map((p) => `<span class="attr-platform-tag">${escapeHtml(p)}</span>`)
+            .join("");
+        }
+      }
+
+      return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(item.attr_label)}</strong>
+          ${isSys ? '<span class="attr-system-pill">内置</span>' : ""}
+        </td>
+        <td><code>${escapeHtml(item.attr_key)}</code></td>
+        <td>${typeBadge}</td>
+        <td><div style="display:flex;flex-wrap:wrap;gap:4px;">${platformBadges}</div></td>
+        <td>${item.sort_order || 0}</td>
+        <td>
+          <div class="dict-ops">
+            <button class="tool-link" onclick="openEditAttrModal(${item.id})">编辑</button>
+            ${
+              item.attr_type === "select" && item.dict_type
+                ? `<button class="tool-link" style="color:var(--color-chatgpt);" onclick="switchSettingsTab('dict-${escapeHtml(
+                    item.dict_type
+                  )}')">维护字典</button>`
+                : ""
+            }
+            ${
+              isSys
+                ? '<span style="color:var(--text-muted);font-size:11px;" title="系统内置属性不可删除">内置保护</span>'
+                : `<button class="tool-link danger" onclick="confirmDeleteAttr(${item.id})">删除</button>`
+            }
+          </div>
+        </td>
+      </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderAttrPlatformCheckboxes(boundPlatforms) {
+  const container = document.getElementById("attr-platform-checkboxes");
+  if (!container) return;
+
+  const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
+  const platformOptions = [
+    { key: "All", label: "全部平台", icon: "🌐" },
+    ...typeDicts.map((d) => ({
+      key: d.dict_key,
+      label: d.dict_label || d.dict_key,
+      icon: d.icon || "💻",
+    })),
+  ];
+
+  let selectedSet = new Set();
+  if (boundPlatforms === "All" || !boundPlatforms) {
+    selectedSet.add("All");
+  } else {
+    try {
+      const arr = typeof boundPlatforms === "string" ? JSON.parse(boundPlatforms) : boundPlatforms;
+      if (Array.isArray(arr)) {
+        if (arr.length === 0 || arr.includes("All")) {
+          selectedSet.add("All");
+        } else {
+          arr.forEach((p) => selectedSet.add(p));
+        }
+      } else {
+        selectedSet.add("All");
+      }
+    } catch (e) {
+      selectedSet.add("All");
+    }
+  }
+
+  container.innerHTML = platformOptions
+    .map((opt) => {
+      const checked = selectedSet.has(opt.key);
+      return `
+      <label class="platform-check-item ${checked ? "active" : ""}">
+        <input type="checkbox" name="attr_platform" value="${escapeHtml(opt.key)}" ${
+        checked ? "checked" : ""
+      } onchange="onAttrPlatformCheckboxChange(this)" style="display:none;" />
+        <span>${opt.icon ? `${opt.icon} ` : ""}${escapeHtml(opt.label)}</span>
+      </label>
+      `;
+    })
+    .join("");
+}
+
+function onAttrPlatformCheckboxChange(cb) {
+  const val = cb.value;
+  const isChecked = cb.checked;
+  const container = document.getElementById("attr-platform-checkboxes");
+  if (!container) return;
+
+  const allInputs = container.querySelectorAll("input[name='attr_platform']");
+  if (val === "All" && isChecked) {
+    allInputs.forEach((inp) => {
+      if (inp.value !== "All") inp.checked = false;
+    });
+  } else if (val !== "All" && isChecked) {
+    allInputs.forEach((inp) => {
+      if (inp.value === "All") inp.checked = false;
+    });
+  }
+
+  const anyChecked = Array.from(allInputs).some((inp) => inp.checked);
+  if (!anyChecked) {
+    allInputs.forEach((inp) => {
+      if (inp.value === "All") inp.checked = true;
+    });
+  }
+
+  allInputs.forEach((inp) => {
+    const parent = inp.closest(".platform-check-item");
+    if (parent) parent.classList.toggle("active", inp.checked);
+  });
+}
+
+function onAttrTypeChange() {
+  const typeSel = document.getElementById("attr-field-type");
+  const dictGrp = document.getElementById("attr-dict-type-group");
+  if (typeSel && dictGrp) {
+    dictGrp.style.display = typeSel.value === "select" ? "block" : "none";
+  }
+}
+
+function populateDictTypeOptions(selectedType = "") {
+  const sel = document.getElementById("attr-field-dict-type");
+  if (!sel) return;
+
+  const dictTypes = Array.from(new Set((state.dicts || []).map((d) => d.dict_type)));
+  if (!dictTypes.includes("account_type")) dictTypes.push("account_type");
+  if (!dictTypes.includes("device_tag")) dictTypes.push("device_tag");
+  if (!dictTypes.includes("health_status")) dictTypes.push("health_status");
+  if (!dictTypes.includes("antigravity_tier")) dictTypes.push("antigravity_tier");
+
+  sel.innerHTML = dictTypes
+    .map(
+      (dt) =>
+        `<option value="${escapeHtml(dt)}" ${dt === selectedType ? "selected" : ""}>${escapeHtml(dt)}</option>`
+    )
+    .join("");
+  syncCustomSelect(sel);
+}
+
+function openAddAttrModal() {
+  state.editingAttrId = null;
+  const modal = document.getElementById("attr-edit-modal");
+  const form = document.getElementById("attr-edit-form");
+  const title = document.getElementById("attr-modal-title");
+  const help = document.getElementById("attr-key-help");
+  const keyInput = document.getElementById("attr-field-key");
+  if (!modal || !form) return;
+
+  form.reset();
+  document.getElementById("attr-field-id").value = "";
+  if (keyInput) {
+    keyInput.readOnly = false;
+    keyInput.value = "";
+  }
+  if (help) help.style.display = "none";
+  if (title) title.textContent = "新建属性与平台绑定";
+
+  const typeSel = document.getElementById("attr-field-type");
+  if (typeSel) {
+    typeSel.value = "text";
+    syncCustomSelect(typeSel);
+  }
+  populateDictTypeOptions();
+  onAttrTypeChange();
+  renderAttrPlatformCheckboxes("All");
+
+  modal.style.display = "flex";
+}
+
+function openEditAttrModal(attrId) {
+  state.editingAttrId = attrId;
+  const item = (state.attributes || []).find((a) => a.id === attrId);
+  if (!item) return;
+
+  const modal = document.getElementById("attr-edit-modal");
+  const title = document.getElementById("attr-modal-title");
+  const help = document.getElementById("attr-key-help");
+  const keyInput = document.getElementById("attr-field-key");
+  if (!modal) return;
+
+  document.getElementById("attr-field-id").value = item.id;
+  document.getElementById("attr-field-label").value = item.attr_label || "";
+  if (keyInput) {
+    keyInput.value = item.attr_key || "";
+    keyInput.readOnly = !!item.is_system;
+  }
+  if (help) {
+    help.style.display = item.is_system ? "block" : "none";
+  }
+
+  const typeSel = document.getElementById("attr-field-type");
+  if (typeSel) {
+    typeSel.value = item.attr_type || "text";
+    syncCustomSelect(typeSel);
+  }
+
+  populateDictTypeOptions(item.dict_type || "");
+  onAttrTypeChange();
+
+  document.getElementById("attr-field-sort").value = item.sort_order || 0;
+  document.getElementById("attr-field-filter").checked = item.is_filter !== 0;
+
+  renderAttrPlatformCheckboxes(item.bound_platforms);
+
+  if (title) title.textContent = `编辑「${item.attr_label}」与平台绑定`;
+  modal.style.display = "flex";
+}
+
+function closeAttrEditModal() {
+  const modal = document.getElementById("attr-edit-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function submitAttrForm(event) {
+  event.preventDefault();
+  const idVal = document.getElementById("attr-field-id").value;
+  const attr_label = document.getElementById("attr-field-label").value.trim();
+  const attr_key = document.getElementById("attr-field-key").value.trim();
+  const attr_type = document.getElementById("attr-field-type").value;
+  const dict_type = attr_type === "select" ? (document.getElementById("attr-field-dict-type")?.value || "").trim() : "";
+  const sort_order = parseInt(document.getElementById("attr-field-sort").value, 10) || 0;
+  const is_filter = document.getElementById("attr-field-filter").checked ? 1 : 0;
+
+  const checkedInputs = Array.from(
+    document.querySelectorAll("#attr-platform-checkboxes input[name='attr_platform']:checked")
+  );
+  let bound_platforms = "All";
+  if (checkedInputs.some((inp) => inp.value === "All")) {
+    bound_platforms = "All";
+  } else {
+    const list = checkedInputs.map((inp) => inp.value);
+    bound_platforms = list.length > 0 ? list : "All";
+  }
+
+  const payload = {
+    attr_label,
+    attr_key,
+    attr_type,
+    dict_type,
+    sort_order,
+    is_filter,
+    bound_platforms,
+  };
+  if (idVal) {
+    payload.id = parseInt(idVal, 10);
+  }
+
+  try {
+    const res = await callApi("save_attribute", payload);
+    if (res && res.ok) {
+      showToast("✓ 属性配置已保存");
+      closeAttrEditModal();
+      await loadDashboard();
+      renderAttributesPane();
+    } else {
+      showToast(res.error || "保存属性失败");
+    }
+  } catch (err) {
+    showToast("保存异常: " + err.message);
+  }
+}
+
+async function confirmDeleteAttr(attrId) {
+  const item = (state.attributes || []).find((a) => a.id === attrId);
+  const name = item ? item.attr_label : "该属性";
+  if (!confirm(`确定要删除属性「${name}」吗？`)) return;
+
+  try {
+    const res = await callApi("delete_attribute", attrId);
+    if (res && res.ok) {
+      showToast("✓ 属性已删除");
+      await loadDashboard();
+      renderAttributesPane();
+    } else {
+      showToast(res.error || "删除失败");
+    }
+  } catch (err) {
+    showToast("删除异常: " + err.message);
+  }
+}

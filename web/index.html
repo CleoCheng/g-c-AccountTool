@@ -594,6 +594,9 @@
             <button class="settings-tab-btn" data-tab="dict-antigravity_tier" onclick="switchSettingsTab('dict-antigravity_tier')">
               <span class="tab-emoji">💎</span><span>Pro 选项</span>
             </button>
+            <button class="settings-tab-btn" data-tab="attrs" onclick="switchSettingsTab('attrs')">
+              <span class="tab-emoji">🧩</span><span>属性与平台绑定</span>
+            </button>
           </div>
         </div>
 
@@ -719,6 +722,41 @@
             </table>
           </div>
         </div>
+
+        <!-- Tab 3: Attributes & Platform Bindings Pane -->
+        <div class="settings-tab-pane" id="pane-attrs" style="display: none;">
+          <div class="dict-pane-header">
+            <div>
+              <h3 class="dict-view-title">🧩 属性定义与平台绑定</h3>
+              <p class="dict-view-sub">统一维护账号属性、字段类型及关联的账号平台（未绑定的平台在界面中自动隐藏该属性）</p>
+            </div>
+            <button type="button" class="btn btn-primary btn-add-attr" onclick="openAddAttrModal()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>新建属性</span>
+            </button>
+          </div>
+
+          <div class="dict-table-card" id="attrs-table-card">
+            <table class="u-table dict-table">
+              <thead>
+                <tr>
+                  <th style="width: 20%;">属性名称</th>
+                  <th style="width: 18%;">标识键</th>
+                  <th style="width: 15%;">字段类型</th>
+                  <th style="width: 25%;">绑定平台</th>
+                  <th style="width: 8%;">排序</th>
+                  <th style="width: 14%;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="attrs-table-body">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -763,6 +801,75 @@
       </form>
     </div>
   </div>
+
+  <!-- Attribute Add / Edit Sub-Modal -->
+  <div class="modal-backdrop" id="attr-edit-modal" style="display: none; z-index: 1050;" onclick="if(event.target === this) closeAttrEditModal()">
+    <div class="modal-card modal-md modal-attr-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title" id="attr-modal-title">编辑属性与平台绑定</h3>
+        <button class="modal-close" onclick="closeAttrEditModal()">×</button>
+      </div>
+      <form id="attr-edit-form" onsubmit="submitAttrForm(event)">
+        <input type="hidden" id="attr-field-id" value="" />
+        <div class="modal-body" style="padding: 16px 20px;">
+          <div class="form-grid-2" style="margin-bottom: 12px;">
+            <div class="form-group">
+              <label for="attr-field-label">属性显示名称 <span class="req">*</span></label>
+              <input type="text" id="attr-field-label" class="settings-input" required placeholder="例如: 所属团队 / 项目" />
+            </div>
+            <div class="form-group">
+              <label for="attr-field-key">标识键 (字段名) <span class="req">*</span></label>
+              <input type="text" id="attr-field-key" class="settings-input" required placeholder="英文标识，例如: org_team" />
+              <small class="form-help-text" id="attr-key-help" style="display:none; color:var(--text-muted); font-size:11px;">内置属性不可更改标识键</small>
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-bottom: 12px;">
+            <div class="form-group">
+              <label for="attr-field-type">字段类型 <span class="req">*</span></label>
+              <div class="settings-select-wrap">
+                <select id="attr-field-type" class="settings-select" onchange="onAttrTypeChange()">
+                  <option value="select">下拉单选 (关联字典表)</option>
+                  <option value="text">单行文本 (自由输入)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" id="attr-dict-type-group">
+              <label for="attr-field-dict-type">关联字典表分类</label>
+              <div class="settings-select-wrap">
+                <select id="attr-field-dict-type" class="settings-select">
+                  <!-- Populated dynamically with available dict types -->
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-bottom: 12px;">
+            <div class="form-group">
+              <label for="attr-field-sort">显示排序</label>
+              <input type="number" id="attr-field-sort" class="settings-input" value="10" />
+            </div>
+            <div class="form-group" style="display: flex; gap: 16px; align-items: center; padding-top: 18px;">
+              <label class="switch-row">
+                <input type="checkbox" id="attr-field-filter" checked />
+                <span class="switch-slider"></span>
+                <span class="switch-text">在工具栏提供快捷筛选</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label style="font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">绑定账号平台 (勾选适用的平台，未勾选的平台在界面中自动隐藏该属性)</label>
+            <div id="attr-platform-checkboxes" class="platform-check-grid">
+              <!-- Dynamically rendered checkbox pills -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+          <button type="button" class="btn btn-secondary" onclick="closeAttrEditModal()">取消</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-attr">保存属性配置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 
   <script src="app.js"></script>
 </body>
