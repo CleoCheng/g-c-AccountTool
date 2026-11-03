@@ -404,7 +404,7 @@ body.light-theme .brand-logo {
   flex-shrink: 0;
 }
 
-.health-filter-select {
+select.health-filter-select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -424,17 +424,17 @@ body.light-theme .brand-logo {
   transition: all 0.15s ease;
 }
 
-.health-filter-select:hover {
+select.health-filter-select:hover {
   border-color: var(--border-focus);
   background-color: var(--bg-surface-hover);
 }
 
-.health-filter-select:focus {
+select.health-filter-select:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-.health-filter-select option {
+select.health-filter-select option {
   background: var(--bg-surface);
   color: var(--text-primary);
   padding: 6px 10px;
@@ -2846,7 +2846,7 @@ body.light-theme .settings-section {
   width: 100%;
 }
 
-.settings-select,
+select.settings-select,
 .modal-settings select.form-control,
 .modal-settings select {
   width: 100%;
@@ -3477,14 +3477,27 @@ body.light-theme .c-option-check {
   color: #2563eb;
 }
 
-/* Variant 1: Top Bar Platform Select (.topbar-select inside #stat-pill-platform-wrap) */
-.c-select-container.topbar-select {
+/* Ensure .c-select-container is strictly a transparent layout wrapper with NO background arrow or border */
+.c-select-container {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+  vertical-align: middle;
+  background: none !important;
+  background-image: none !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Variant 1: Top Bar Platform Select */
+.c-select-container.c-topbar-select {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
 }
 
-.c-select-container.topbar-select .c-select-trigger {
+.c-select-container.c-topbar-select .c-select-trigger {
   height: 24px;
   background: transparent;
   border: none;
@@ -3496,28 +3509,28 @@ body.light-theme .c-option-check {
   gap: 5px;
 }
 
-.c-select-container.topbar-select .c-select-trigger:hover {
+.c-select-container.c-topbar-select .c-select-trigger:hover {
   background: transparent;
 }
 
-.c-select-container.topbar-select.open .c-select-trigger {
+.c-select-container.c-topbar-select.open .c-select-trigger {
   box-shadow: none;
   background: transparent;
 }
 
-.c-select-container.topbar-select .c-select-menu {
+.c-select-container.c-topbar-select .c-select-menu {
   min-width: 175px;
   top: calc(100% + 8px);
   left: 0;
 }
 
-/* Variant 2: Secondary Filter Bar (.health-filter-select) */
-.c-select-container.health-filter-select {
+/* Variant 2: Secondary Filter Bar */
+.c-select-container.c-filter-select {
   display: inline-block;
   vertical-align: middle;
 }
 
-.c-select-container.health-filter-select .c-select-trigger {
+.c-select-container.c-filter-select .c-select-trigger {
   height: 32px;
   padding: 0 10px;
   background-color: var(--bg-surface);
@@ -3530,31 +3543,27 @@ body.light-theme .c-option-check {
   gap: 6px;
 }
 
-.c-select-container.health-filter-select .c-select-trigger:hover {
+.c-select-container.c-filter-select .c-select-trigger:hover {
   border-color: var(--accent-primary);
   color: var(--text-primary);
   background-color: var(--bg-surface);
 }
 
-.c-select-container.health-filter-select.open .c-select-trigger {
+.c-select-container.c-filter-select.open .c-select-trigger {
   border-color: var(--accent-primary);
   color: var(--text-primary);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   background-color: var(--bg-surface);
 }
 
-.c-select-container.health-filter-select .c-select-menu {
+.c-select-container.c-filter-select .c-select-menu {
   min-width: 155px;
   top: calc(100% + 5px);
 }
 
 /* Variant 3: Settings Select in Modal & Port Select */
-.c-select-container.settings-select {
-  width: 100%;
-  display: block;
-}
-
-.c-select-container.port-select {
+.c-select-container.c-settings-select,
+.c-select-container.c-port-select {
   width: 100%;
   display: block;
 }
@@ -3602,7 +3611,7 @@ body.light-theme .c-option-check {
 }
 
 .stat-pill.stat-select-pill.open,
-.c-select-container.topbar-select.open {
+.c-select-container.c-topbar-select.open {
   z-index: 500;
 }
 

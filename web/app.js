@@ -2218,9 +2218,15 @@ function enhanceSelectToCustom(selectEl) {
     return;
   }
 
-  // Create wrapper container
+  // Create wrapper container with isolated component classes
   const wrap = document.createElement("div");
-  wrap.className = "c-select-container " + (selectEl.className || "");
+  wrap.className = "c-select-container";
+  if (selectEl.id) wrap.classList.add("c-select-" + selectEl.id);
+  if (selectEl.classList.contains("topbar-select")) wrap.classList.add("c-topbar-select");
+  if (selectEl.classList.contains("health-filter-select")) wrap.classList.add("c-filter-select");
+  if (selectEl.classList.contains("settings-select")) wrap.classList.add("c-settings-select");
+  if (selectEl.classList.contains("port-select")) wrap.classList.add("c-port-select");
+  if (selectEl.classList.contains("ag-filter-select")) wrap.classList.add("c-ag-select");
   wrap.setAttribute("data-for-id", selectEl.id || "");
 
   // Create trigger button
