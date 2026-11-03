@@ -111,15 +111,31 @@ body {
 }
 
 .brand-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #06b6d4);
-  color: #fff;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
+body.light-theme .brand-logo {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.brand-logo:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.8);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
 }
 
 .brand-title {
@@ -1288,13 +1304,14 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.75);
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 12px;
-  overflow: hidden;
+  z-index: 1000;
+  padding: 20px 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .modal-card {
@@ -2590,9 +2607,11 @@ body {
 .modal-card.modal-settings {
   max-width: 720px;
   width: 94%;
-  max-height: 90vh;
+  max-height: calc(100vh - 40px);
+  margin: auto;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   background: linear-gradient(180deg, #151d2f 0%, #0d1424 100%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
@@ -2600,6 +2619,7 @@ body {
               0 0 0 1px rgba(255, 255, 255, 0.05),
               inset 0 1px 0 rgba(255, 255, 255, 0.1);
   overflow: hidden;
+  position: relative;
 }
 
 body.light-theme .modal-card.modal-settings {
@@ -2608,16 +2628,23 @@ body.light-theme .modal-card.modal-settings {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
-/* Modal Header */
+/* Modal Header - Fixed at top, never shrinks */
 .settings-header {
-  padding: 18px 24px 14px;
+  padding: 16px 24px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
+  flex-shrink: 0 !important;
+  background: rgba(21, 29, 47, 0.95);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 body.light-theme .settings-header {
+  background: rgba(255, 255, 255, 0.95);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -2648,45 +2675,57 @@ body.light-theme .settings-header-icon {
 }
 
 .modal-settings .modal-title {
-  font-size: 17px;
+  font-size: 16.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   margin: 0;
+  line-height: 1.25;
 }
 
 .modal-settings .modal-subtitle {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-muted);
-  margin: 4px 0 0 48px;
+  margin: 3px 0 0 48px;
+  line-height: 1.3;
 }
 
+/* Prominent, Never-Shrinking Close Button */
 .settings-header .modal-close {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-muted);
-  font-size: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
+  flex-shrink: 0 !important;
   transition: all 0.15s ease;
 }
 
+body.light-theme .settings-header .modal-close {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #64748b;
+}
+
 .settings-header .modal-close:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
+  transform: scale(1.05);
 }
 
 .settings-modal-body {
   padding: 16px 24px 20px;
   overflow-y: auto;
-  max-height: calc(90vh - 120px);
+  flex: 1 1 auto;
+  min-height: 0 !important; /* CRITICAL: allows content to scroll without squashing header */
 }
 
 /* Floating Segmented Pill Tab Bar */
@@ -2973,9 +3012,39 @@ body.light-theme .sec-mini-card:hover {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 12px;
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-close-settings {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+body.light-theme .btn-close-settings {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn-close-settings:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.light-theme .btn-close-settings:hover {
+  background: #e2e8f0;
+  color: #1e293b;
 }
 
 body.light-theme .settings-footer {

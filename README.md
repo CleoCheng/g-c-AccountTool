@@ -1,6 +1,6 @@
-# 🔐 KeyVault · 账号管家 (Google & ChatGPT Account Manager)
+# 🔐 KeyVault · 全平台账号与凭据管家 (KeyVault Account & Credential Vault)
 
-一款轻量、100% 本地离线存储、专为 **Google** 与 **ChatGPT / OpenAI** 多账号管理打造的桌面端密钥库与防关联指纹浏览器工作台。
+一款轻量、100% 本地离线存储、支持 **ChatGPT、Google、WorkBuddy、Qcoder** 及自定义平台的全能多账号凭据管理与防关联指纹工作台。
 
 > [!WARNING]
 > **使用前请阅读文末「⚠️ 免责声明」。** 本项目仅供学习研究及管理您本人合法拥有的账号。

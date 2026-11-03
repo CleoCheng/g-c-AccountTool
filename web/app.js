@@ -2168,3 +2168,31 @@ async function saveGeneralSettings() {
     showToast("保存设置失败: " + err.message);
   }
 }
+
+// ============================================================
+// GLOBAL KEYBOARD LISTENER (ESC to close any open modal)
+// ============================================================
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" || e.keyCode === 27) {
+    const dictEditModal = document.getElementById("dict-edit-modal");
+    if (dictEditModal && dictEditModal.style.display !== "none") {
+      closeDictEditModal();
+      return;
+    }
+    const settingsModal = document.getElementById("settings-modal");
+    if (settingsModal && settingsModal.style.display !== "none") {
+      closeSettingsModal();
+      return;
+    }
+    const nodeModal = document.getElementById("node-modal");
+    if (nodeModal && nodeModal.style.display !== "none") {
+      closeNodeModal();
+      return;
+    }
+    const mainModal = document.getElementById("modal");
+    if (mainModal && mainModal.style.display !== "none") {
+      closeModal();
+      return;
+    }
+  }
+});

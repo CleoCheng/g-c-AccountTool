@@ -60,7 +60,7 @@ def main() -> None:
         print(f"OK: data_dir={data_dir} total_accounts={dash['stats']['total']}")
         return
 
-    title = "KeyVault · 账号管家 (Google & ChatGPT)"
+    title = "KeyVault · 全平台账号与凭据管家"
     index_html = web_dir / "index.html"
     window = webview.create_window(
         title=title,
