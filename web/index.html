@@ -269,74 +269,8 @@
             </div>
           </div>
 
-          <!-- 设备标记维护选择 (主机 / iPhone / Pad) -->
-          <div class="form-group" style="margin-bottom: 14px;">
-            <label>设备标记</label>
-            <div class="health-selector" id="field-device-selector">
-              <label class="type-radio">
-                <input type="radio" name="device_tag" value="主机" id="dev-radio-host" checked />
-                <span class="radio-pill"><span class="device-dot"></span>🖥️ 主机</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="device_tag" value="iPhone" id="dev-radio-iphone" />
-                <span class="radio-pill"><span class="device-dot"></span>📱 iPhone</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="device_tag" value="Pad" id="dev-radio-pad" />
-                <span class="radio-pill"><span class="device-dot"></span>📱 Pad</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Availability / Health Status Selector (维护入口) -->
-          <div class="form-group" style="margin-bottom: 14px;">
-            <label>账号可用状态 (维护入口)</label>
-            <div class="health-selector" id="field-health-selector">
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="可用" id="health-radio-available" checked />
-                <span class="radio-pill pill-available"><span class="badge-dot dot-available"></span>可用</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="封号" id="health-radio-banned" />
-                <span class="radio-pill pill-banned"><span class="badge-dot dot-banned"></span>封号</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="人机" id="health-radio-captcha" />
-                <span class="radio-pill pill-captcha"><span class="badge-dot dot-captcha"></span>人机 (盾)</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="短信" id="health-radio-sms" />
-                <span class="radio-pill pill-sms"><span class="badge-dot dot-sms"></span>短信验证</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="验证" id="health-radio-verify" />
-                <span class="radio-pill pill-verify"><span class="badge-dot dot-verify"></span>邮箱/重置验证</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="health_status" value="不可用" id="health-radio-unavailable" />
-                <span class="radio-pill pill-unavailable"><span class="badge-dot dot-unavailable"></span>不可用 (闲置)</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Antigravity 选项标记维护入口 (无 / Pro(蓝) / Pro(金) 纯净文字区分) -->
-          <div class="form-group" style="margin-bottom: 14px;">
-            <label>Antigravity 选项标记</label>
-            <div class="health-selector" id="field-antigravity-selector">
-              <label class="type-radio">
-                <input type="radio" name="antigravity_tier" value="无" id="ag-radio-none" checked />
-                <span class="radio-pill pill-ag-none"><span class="badge-dot dot-ag-none"></span>无</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="antigravity_tier" value="蓝色Pro" id="ag-radio-blue" />
-                <span class="radio-pill pill-ag-blue"><span class="badge-dot dot-ag-blue"></span>Pro</span>
-              </label>
-              <label class="type-radio">
-                <input type="radio" name="antigravity_tier" value="金色Pro" id="ag-radio-gold" />
-                <span class="radio-pill pill-ag-gold"><span class="badge-dot dot-ag-gold"></span>Pro</span>
-              </label>
-            </div>
-          </div>
+          <!-- Dynamic Platform-bound Attributes Section -->
+          <div id="form-dynamic-attributes-container" class="dynamic-form-section"></div>
 
           <!-- Row 2: Account Email + Password -->
           <div class="form-grid-2">

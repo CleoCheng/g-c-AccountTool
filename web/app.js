@@ -626,6 +626,11 @@ function renderCardItem(item, remaining) {
   const showDrawer = state.viewMode === "full" || !!state.expandedCards[item.id];
 
   const devMeta = getDeviceMeta(item.device_tag || "主机");
+  const devAttr = (state.attributes || []).find((a) => a.attr_key === "device_tag");
+  const showDevBadge = !devAttr || isAttributeApplicable(devAttr, item.account_type);
+
+  const agAttr = (state.attributes || []).find((a) => a.attr_key === "antigravity_tier");
+  const showAgBadge = !agAttr || isAttributeApplicable(agAttr, item.account_type);
 
   // 1-Click Quick Device Tag Dropdown (主机 / iPhone / Pad)
   const devBadgeHtml = `
@@ -725,6 +730,9 @@ function renderCardItem(item, remaining) {
             <button class="u-peek-btn" onclick="openEditModal(${item.id})">在表单维护</button>
           </div>
         </div>
+        ${
+          showAgBadge
+            ? `
         <div class="detail-row">
           <span class="detail-key">Antigravity</span>
           <span class="detail-val" style="display:inline-flex;align-items:center;gap:6px;">
@@ -734,7 +742,10 @@ function renderCardItem(item, remaining) {
           <div class="detail-ops">
             <button class="u-peek-btn" onclick="openEditModal(${item.id})">修改标记</button>
           </div>
-        </div>
+        </div>`
+            : ""
+        }
+        ${renderCustomDrawerRows(item)}
         <div class="detail-row">
           <span class="detail-key">指纹环境</span>
           <span class="detail-val">[${escapeHtml(fpInfo.code)}] ${escapeHtml(fpInfo.shortDesc)}</span>
@@ -841,8 +852,8 @@ function renderCardItem(item, remaining) {
           ${twofaFlagHtml}
         </div>
         <div class="u-sec-right" style="display:flex;align-items:center;gap:6px;">
-          ${devBadgeHtml}
-          ${agBadgeHtml}
+          ${showDevBadge ? devBadgeHtml : ""}
+          ${showAgBadge ? agBadgeHtml : ""}
         </div>
       </div>
 
@@ -921,6 +932,10 @@ function renderTableView(remaining, list = state.accounts) {
       const hMeta = getHealthMeta(item.health_status || "可用");
       const agMeta = getAntigravityMeta(item.antigravity_tier || "无");
       const devMeta = getDeviceMeta(item.device_tag || "主机");
+      const devAttr = (state.attributes || []).find((a) => a.attr_key === "device_tag");
+      const showDevBadge = !devAttr || isAttributeApplicable(devAttr, item.account_type);
+      const agAttr = (state.attributes || []).find((a) => a.attr_key === "antigravity_tier");
+      const showAgBadge = !agAttr || isAttributeApplicable(agAttr, item.account_type);
       const isPwdModified = !!item.password_modified;
       const is2faModified = !!item.twofa_modified;
       const fpInfo = getFpSummary(item);
@@ -1039,7 +1054,7 @@ function renderTableView(remaining, list = state.accounts) {
           </td>
           <td>
             <div class="tb-col-status">
-              ${devBadgeTableHtml}
+              ${showDevBadge ? devBadgeTableHtml : ""}
               ${healthBadgeHtml}
             </div>
           </td>
@@ -1058,7 +1073,7 @@ function renderTableView(remaining, list = state.accounts) {
                 }
               </div>
               <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                ${agBadgeTableHtml}
+                ${showAgBadge ? agBadgeTableHtml : ""}
                 <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
               </div>
             </div>
@@ -1672,9 +1687,15 @@ function openAddModal() {
   document.getElementById("smart-paste-input").value = "";
   resetFeedbackText();
   resetFormFields();
-  setRadioHealth("可用");
-  setRadioAntigravity("无");
-  setRadioDevice("主机");
+
+  const defType = state.settings?.default_account_type || "ChatGPT";
+  syncAccountTypeRadios(defType);
+  renderAccountModalDynamicFields(defType, {
+    health_status: "可用",
+    antigravity_tier: "无",
+    device_tag: state.settings?.default_device_tag || "主机",
+  });
+
   document.getElementById("account-modal").style.display = "flex";
   setTimeout(() => document.getElementById("smart-paste-input").focus(), 60);
 }
@@ -1689,10 +1710,13 @@ function openEditModal(accountId) {
   resetFeedbackText();
 
   document.getElementById("field-id").value = item.id;
-  setRadioType(item.account_type || "ChatGPT");
-  setRadioHealth(item.health_status || "可用");
-  setRadioAntigravity(item.antigravity_tier || "无");
-  setRadioDevice(item.device_tag || "主机");
+  syncAccountTypeRadios(item.account_type || "ChatGPT");
+  renderAccountModalDynamicFields(item.account_type || "ChatGPT", {
+    health_status: item.health_status,
+    antigravity_tier: item.antigravity_tier,
+    device_tag: item.device_tag,
+    ...(item.custom_fields || {}),
+  });
   document.getElementById("field-password-modified").checked = !!item.password_modified;
   document.getElementById("field-twofa-modified").checked = !!item.twofa_modified;
   document.getElementById("field-account").value = item.account || "";
@@ -1871,8 +1895,13 @@ async function onSmartPasteInput(rawText) {
     }
 
     const first = records[0];
-    setRadioType(first.account_type || "ChatGPT");
-    setRadioHealth(first.health_status || "可用");
+    const recType = first.account_type || "ChatGPT";
+    syncAccountTypeRadios(recType);
+    renderAccountModalDynamicFields(recType, {
+      health_status: first.health_status || "可用",
+      antigravity_tier: first.antigravity_tier || "无",
+      device_tag: first.device_tag || "主机",
+    });
     if (first.password_modified) {
       document.getElementById("field-password-modified").checked = true;
     }
@@ -1942,12 +1971,22 @@ function onInitialSecretFieldInput(secretVal) {
 
 async function submitAccountForm(e) {
   e.preventDefault();
+  const accType = getRadioType();
+  const dynVals = getCurrentDynamicFormValues();
+  const custom_fields = {};
+  (state.attributes || []).forEach((attr) => {
+    if (!attr.is_system && dynVals[attr.attr_key] !== undefined) {
+      custom_fields[attr.attr_key] = dynVals[attr.attr_key];
+    }
+  });
+
   const payload = {
     id: document.getElementById("field-id").value || null,
-    account_type: getRadioType(),
-    health_status: getRadioHealth(),
-    antigravity_tier: getRadioAntigravity(),
-    device_tag: getRadioDevice(),
+    account_type: accType,
+    health_status: dynVals.health_status || getRadioHealth(),
+    antigravity_tier: dynVals.antigravity_tier || getRadioAntigravity(),
+    device_tag: dynVals.device_tag || getRadioDevice(),
+    custom_fields,
     password_modified: document.getElementById("field-password-modified").checked ? 1 : 0,
     twofa_modified: document.getElementById("field-twofa-modified").checked ? 1 : 0,
     account: document.getElementById("field-account").value.trim(),
@@ -2796,4 +2835,232 @@ async function confirmDeleteAttr(attrId) {
   } catch (err) {
     showToast("删除异常: " + err.message);
   }
+}
+
+
+// ============================================================
+// DYNAMIC ACCOUNT MODAL & DRAWER ATTRIBUTES
+// ============================================================
+function syncAccountTypeRadios(selectedType = "ChatGPT") {
+  const container = document.getElementById("field-type-selector");
+  if (!container) return;
+
+  const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
+  const types =
+    typeDicts.length > 0
+      ? typeDicts
+      : [
+          { dict_key: "ChatGPT", dict_label: "ChatGPT", color_class: "chatgpt", icon: "🤖" },
+          { dict_key: "Google", dict_label: "Google", color_class: "google", icon: "🔍" },
+          { dict_key: "WorkBuddy", dict_label: "WorkBuddy", color_class: "workbuddy", icon: "💼" },
+          { dict_key: "Qcoder", dict_label: "Qcoder", color_class: "qcoder", icon: "⚡" },
+        ];
+
+  container.innerHTML = types
+    .map((d) => {
+      const isChecked = d.dict_key === selectedType;
+      const dot = d.color_class
+        ? `<span class="badge-dot dot-${escapeHtml(d.color_class)}"></span>`
+        : d.icon
+        ? `${d.icon} `
+        : "";
+      return `
+      <label class="type-radio">
+        <input type="radio" name="account_type" value="${escapeHtml(d.dict_key)}" ${
+        isChecked ? "checked" : ""
+      } onchange="onAccountTypeRadioChange(this.value)" />
+        <span class="radio-pill">${dot}${escapeHtml(d.dict_label || d.dict_key)}</span>
+      </label>
+      `;
+    })
+    .join("");
+}
+
+function renderAccountModalDynamicFields(accountType, currentValues = {}) {
+  const container = document.getElementById("form-dynamic-attributes-container");
+  if (!container) return;
+
+  const applicableAttrs = (state.attributes || []).filter((a) =>
+    isAttributeApplicable(a, accountType)
+  );
+
+  if (applicableAttrs.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = applicableAttrs
+    .map((attr) => {
+      if (attr.attr_key === "health_status") {
+        const dictItems = (state.dicts || []).filter((d) => d.dict_type === "health_status");
+        const curVal = currentValues.health_status || "可用";
+        const radios = (dictItems.length > 0
+          ? dictItems
+          : [
+              { dict_key: "可用", dict_label: "可用", color_class: "available" },
+              { dict_key: "封号", dict_label: "封号", color_class: "banned" },
+              { dict_key: "人机", dict_label: "人机 (盾)", color_class: "captcha" },
+              { dict_key: "短信", dict_label: "短信验证", color_class: "sms" },
+              { dict_key: "验证", dict_label: "邮箱/重置验证", color_class: "verify" },
+              { dict_key: "不可用", dict_label: "不可用 (闲置)", color_class: "unavailable" },
+            ]
+        )
+          .map((d) => {
+            const checked = d.dict_key === curVal ? "checked" : "";
+            const cls = d.color_class ? `pill-${d.color_class}` : "";
+            const dot = d.color_class ? `<span class="badge-dot dot-${d.color_class}"></span>` : "";
+            return `
+            <label class="type-radio">
+              <input type="radio" name="health_status" value="${escapeHtml(d.dict_key)}" ${checked} />
+              <span class="radio-pill ${cls}">${dot}${escapeHtml(d.dict_label || d.dict_key)}</span>
+            </label>
+          `;
+          })
+          .join("");
+
+        return `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>账号可用状态 (维护入口)</label>
+          <div class="health-selector" id="field-health-selector">${radios}</div>
+        </div>
+        `;
+      }
+
+      if (attr.attr_key === "device_tag") {
+        const dictItems = (state.dicts || []).filter((d) => d.dict_type === "device_tag");
+        const curVal = currentValues.device_tag || "主机";
+        const radios = (dictItems.length > 0
+          ? dictItems
+          : [
+              { dict_key: "主机", dict_label: "主机", icon: "🖥️" },
+              { dict_key: "iPhone", dict_label: "iPhone", icon: "📱" },
+              { dict_key: "Pad", dict_label: "Pad", icon: "📱" },
+            ]
+        )
+          .map((d) => {
+            const checked = d.dict_key === curVal ? "checked" : "";
+            return `
+            <label class="type-radio">
+              <input type="radio" name="device_tag" value="${escapeHtml(d.dict_key)}" ${checked} />
+              <span class="radio-pill"><span class="device-dot"></span>${d.icon ? `${d.icon} ` : ""}${escapeHtml(d.dict_label || d.dict_key)}</span>
+            </label>
+          `;
+          })
+          .join("");
+
+        return `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>设备标记</label>
+          <div class="health-selector" id="field-device-selector">${radios}</div>
+        </div>
+        `;
+      }
+
+      if (attr.attr_key === "antigravity_tier") {
+        const dictItems = (state.dicts || []).filter((d) => d.dict_type === "antigravity_tier");
+        const curVal = currentValues.antigravity_tier || "无";
+        const radios = (dictItems.length > 0
+          ? dictItems
+          : [
+              { dict_key: "无", dict_label: "无", color_class: "ag-none" },
+              { dict_key: "蓝色Pro", dict_label: "Pro", color_class: "ag-blue" },
+              { dict_key: "金色Pro", dict_label: "Pro", color_class: "ag-gold" },
+            ]
+        )
+          .map((d) => {
+            const checked = d.dict_key === curVal ? "checked" : "";
+            const cls = d.color_class ? `pill-${d.color_class}` : "";
+            const dot = d.color_class ? `<span class="badge-dot dot-${d.color_class}"></span>` : "";
+            return `
+            <label class="type-radio">
+              <input type="radio" name="antigravity_tier" value="${escapeHtml(d.dict_key)}" ${checked} />
+              <span class="radio-pill ${cls}">${dot}${escapeHtml(d.dict_label || d.dict_key)}</span>
+            </label>
+          `;
+          })
+          .join("");
+
+        return `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>Antigravity 选项标记</label>
+          <div class="health-selector" id="field-antigravity-selector">${radios}</div>
+        </div>
+        `;
+      }
+
+      // Custom attributes: select vs text
+      if (attr.attr_type === "select") {
+        const dictItems = (state.dicts || []).filter((d) => d.dict_type === attr.dict_type);
+        const curVal = currentValues[attr.attr_key] || (dictItems[0]?.dict_key || "");
+        const radios = dictItems
+          .map((d) => {
+            const checked = d.dict_key === curVal ? "checked" : "";
+            return `
+            <label class="type-radio">
+              <input type="radio" name="${escapeHtml(attr.attr_key)}" value="${escapeHtml(d.dict_key)}" ${checked} />
+              <span class="radio-pill">${d.icon ? `${d.icon} ` : ""}${escapeHtml(d.dict_label || d.dict_key)}</span>
+            </label>
+          `;
+          })
+          .join("");
+
+        return `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>${escapeHtml(attr.attr_label)}</label>
+          <div class="health-selector">${radios || '<span style="color:var(--text-muted);font-size:12px;">暂无字典选项</span>'}</div>
+        </div>
+        `;
+      } else {
+        const curVal = currentValues[attr.attr_key] || "";
+        return `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="field-custom-${escapeHtml(attr.attr_key)}">${escapeHtml(attr.attr_label)}</label>
+          <input type="text" id="field-custom-${escapeHtml(attr.attr_key)}" name="${escapeHtml(attr.attr_key)}" class="settings-input" value="${escapeHtml(curVal)}" placeholder="请输入${escapeHtml(attr.attr_label)}" />
+        </div>
+        `;
+      }
+    })
+    .join("");
+}
+
+function getCurrentDynamicFormValues() {
+  const values = {};
+  const container = document.getElementById("form-dynamic-attributes-container");
+  if (!container) return values;
+
+  container.querySelectorAll("input[type='radio']:checked").forEach((rad) => {
+    values[rad.name] = rad.value;
+  });
+
+  container.querySelectorAll("input[type='text'], input[type='number']").forEach((inp) => {
+    if (inp.name) {
+      values[inp.name] = inp.value.trim();
+    }
+  });
+
+  return values;
+}
+
+function onAccountTypeRadioChange(newType) {
+  const currentValues = getCurrentDynamicFormValues();
+  renderAccountModalDynamicFields(newType, currentValues);
+}
+
+function renderCustomDrawerRows(item) {
+  if (!item || !item.custom_fields) return "";
+  const rows = [];
+  (state.attributes || []).forEach((attr) => {
+    if (!attr.is_system && isAttributeApplicable(attr, item.account_type)) {
+      const val = item.custom_fields[attr.attr_key];
+      if (val) {
+        rows.push(`
+          <div class="detail-row">
+            <span class="detail-key">${escapeHtml(attr.attr_label)}</span>
+            <span class="detail-val"><strong>${escapeHtml(val)}</strong></span>
+          </div>
+        `);
+      }
+    }
+  });
+  return rows.join("");
 }

@@ -3753,3 +3753,10 @@ body.light-theme .platform-check-item {
   margin-left: 6px;
   vertical-align: middle;
 }
+
+
+.dynamic-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
