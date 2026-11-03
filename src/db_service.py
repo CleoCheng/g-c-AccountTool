@@ -17,6 +17,13 @@ VALID_HEALTH_STATUSES = ["可用", "不可用", "封号", "人机", "短信", "�
 VALID_ANTIGRAVITY_TIERS = ["无", "蓝色Pro", "金色Pro", "蓝色背景色Pro", "金色背景色Pro"]
 VALID_DEVICE_TAGS = ["主机", "iPhone", "Pad"]
 
+DEFAULT_ATTRIBUTES = [
+    # (attr_key, attr_label, attr_type, bound_platforms, dict_type, sort_order, is_system, is_required, is_filter)
+    ("health_status", "可用状态", "select", "All", "health_status", 10, 1, 1, 1),
+    ("device_tag", "设备标记", "select", '["Google"]', "device_tag", 20, 1, 0, 1),
+    ("antigravity_tier", "Pro 选项", "select", '["Google"]', "antigravity_tier", 30, 1, 0, 1),
+]
+
 DEFAULT_DICTS = [
     # 账号类型
     ("account_type", "ChatGPT", "ChatGPT", "ChatGPT", "chatgpt", "🤖", 1, 1, 1),
@@ -118,6 +125,7 @@ class DatabaseService:
                     reg_year TEXT DEFAULT '',
                     reg_region TEXT DEFAULT '',
                     note TEXT DEFAULT '',
+                    custom_fields_json TEXT DEFAULT '{}',
                     fp_config_json TEXT DEFAULT '',
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -137,12 +145,14 @@ class DatabaseService:
                 "purchase_date": "ALTER TABLE accounts ADD COLUMN purchase_date TEXT DEFAULT ''",
                 "deactivated_date": "ALTER TABLE accounts ADD COLUMN deactivated_date TEXT DEFAULT ''",
                 "fp_config_json": "ALTER TABLE accounts ADD COLUMN fp_config_json TEXT DEFAULT ''",
+                "custom_fields_json": "ALTER TABLE accounts ADD COLUMN custom_fields_json TEXT DEFAULT '{}'",
             }
             for col_name, ddl in migrations.items():
                 if col_name not in existing_cols:
                     conn.execute(ddl)
 
             # Ensure any null or empty fields have valid defaults
+            conn.execute("UPDATE accounts SET custom_fields_json = '{}' WHERE custom_fields_json IS NULL OR custom_fields_json = ''")
             conn.execute("UPDATE accounts SET health_status = '可用' WHERE health_status IS NULL OR health_status = ''")
             conn.execute("UPDATE accounts SET antigravity_tier = '无' WHERE antigravity_tier IS NULL OR antigravity_tier = ''")
             conn.execute("UPDATE accounts SET device_tag = '主机' WHERE device_tag IS NULL OR device_tag = ''")
@@ -180,6 +190,36 @@ class DatabaseService:
                     """,
                     (dt, dk, dl, dv, cc, icon, so, is_def, is_sys),
                 )
+
+            # Account Attributes Table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS account_attributes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    attr_key TEXT NOT NULL UNIQUE,
+                    attr_label TEXT NOT NULL,
+                    attr_type TEXT NOT NULL DEFAULT 'text',
+                    bound_platforms TEXT NOT NULL DEFAULT 'All',
+                    dict_type TEXT DEFAULT '',
+                    sort_order INTEGER DEFAULT 0,
+                    is_system INTEGER DEFAULT 0,
+                    is_required INTEGER DEFAULT 0,
+                    is_filter INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+            for ak, al, at, bp, dt, so, is_sys, is_req, is_filt in DEFAULT_ATTRIBUTES:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO account_attributes
+                    (attr_key, attr_label, attr_type, bound_platforms, dict_type, sort_order, is_system, is_required, is_filter)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (ak, al, at, bp, dt, so, is_sys, is_req, is_filt),
+                )
+
 
             # Backfill permanent paired fingerprint config for any account missing it
             rows = conn.execute(
@@ -232,6 +272,12 @@ class DatabaseService:
         item["masked_initial_secret"] = mask_secret(item["initial_secret_key"]) if item["initial_secret_key"] else ""
         item["totp"] = generate_totp(item["secret_key"])
         item["usage"] = compute_usage_info(item["purchase_date"], item["deactivated_date"])
+
+        raw_cf = item.get("custom_fields_json") or "{}"
+        try:
+            item["custom_fields"] = json.loads(raw_cf) if isinstance(raw_cf, str) else (raw_cf or {})
+        except Exception:
+            item["custom_fields"] = {}
 
         raw_fp = item.get("fp_config_json") or ""
         try:
@@ -329,6 +375,13 @@ class DatabaseService:
         reg_year = (data.get("reg_year") or "").strip()
         reg_region = (data.get("reg_region") or "").strip()
         note = (data.get("note") or "").strip()
+        raw_custom = data.get("custom_fields")
+        if isinstance(raw_custom, dict):
+            custom_fields_json = json.dumps(raw_custom, ensure_ascii=False)
+        elif isinstance(data.get("custom_fields_json"), str) and data.get("custom_fields_json").strip():
+            custom_fields_json = data.get("custom_fields_json").strip()
+        else:
+            custom_fields_json = "{}"
         return (
             account_type,
             health_status,
@@ -346,6 +399,7 @@ class DatabaseService:
             reg_year,
             reg_region,
             note,
+            custom_fields_json,
         )
 
     def add_account(self, data: dict) -> dict:
@@ -357,8 +411,8 @@ class DatabaseService:
                 INSERT INTO accounts (
                     account_type, health_status, antigravity_tier, device_tag, account, password, password_modified, recovery_email,
                     secret_key, initial_secret_key, twofa_modified,
-                    purchase_date, deactivated_date, reg_year, reg_region, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    purchase_date, deactivated_date, reg_year, reg_region, note, custom_fields_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 fields,
             )
@@ -384,8 +438,8 @@ class DatabaseService:
                     INSERT INTO accounts (
                         account_type, health_status, antigravity_tier, device_tag, account, password, password_modified, recovery_email,
                         secret_key, initial_secret_key, twofa_modified,
-                        purchase_date, deactivated_date, reg_year, reg_region, note
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        purchase_date, deactivated_date, reg_year, reg_region, note, custom_fields_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     fields,
                 )
@@ -409,6 +463,8 @@ class DatabaseService:
             merged["antigravity_tier"] = existing.get("antigravity_tier", "无")
         if "device_tag" not in merged:
             merged["device_tag"] = existing.get("device_tag", "主机")
+        if "custom_fields" not in merged and "custom_fields_json" not in merged:
+            merged["custom_fields_json"] = existing.get("custom_fields_json") or "{}"
         if "password_modified" not in merged:
             if merged.get("password") and existing.get("password") and merged["password"].strip() != existing["password"]:
                 merged["password_modified"] = 1
@@ -442,6 +498,7 @@ class DatabaseService:
                     reg_year = ?,
                     reg_region = ?,
                     note = ?,
+                    custom_fields_json = ?,
                     fp_config_json = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -766,3 +823,136 @@ class DatabaseService:
                     parts.append(item["secret_key"])
                 lines.append("----".join(parts))
         return "\n".join(lines)
+
+
+    # -------------------------------------------------------------
+    # Attributes and Platform Binding CRUD
+    # -------------------------------------------------------------
+    def list_attributes(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM account_attributes ORDER BY sort_order ASC, id ASC"
+            ).fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                bp = d.get("bound_platforms") or "All"
+                try:
+                    d["platforms_list"] = ["All"] if bp == "All" else json.loads(bp)
+                except Exception:
+                    d["platforms_list"] = ["All"]
+                result.append(d)
+            return result
+
+    def get_attribute(self, attr_id: int) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM account_attributes WHERE id = ?", (int(attr_id),)
+            ).fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            bp = d.get("bound_platforms") or "All"
+            try:
+                d["platforms_list"] = ["All"] if bp == "All" else json.loads(bp)
+            except Exception:
+                d["platforms_list"] = ["All"]
+            return d
+
+    def save_attribute(self, data: dict) -> dict:
+        attr_id = data.get("id")
+        attr_key = (data.get("attr_key") or "").strip()
+        attr_label = (data.get("attr_label") or "").strip()
+        attr_type = (data.get("attr_type") or "text").strip()
+        dict_type = (data.get("dict_type") or "").strip()
+        sort_order = int(data.get("sort_order") or 0)
+        is_filter = 1 if data.get("is_filter") in (1, True, "1", "true") else 0
+        is_required = 1 if data.get("is_required") in (1, True, "1", "true") else 0
+
+        bound = data.get("bound_platforms", "All")
+        if isinstance(bound, (list, tuple)):
+            if not bound or "All" in bound:
+                bound_str = "All"
+            else:
+                bound_str = json.dumps(list(bound), ensure_ascii=False)
+        elif isinstance(bound, str):
+            bound_str = bound.strip() or "All"
+        else:
+            bound_str = "All"
+
+        if not attr_key:
+            return {"ok": False, "error": "属性标识键不能为空"}
+        if not attr_label:
+            return {"ok": False, "error": "属性显示名称不能为空"}
+
+        with self._connect() as conn:
+            if attr_id:
+                existing = conn.execute("SELECT * FROM account_attributes WHERE id = ?", (int(attr_id),)).fetchone()
+                if not existing:
+                    return {"ok": False, "error": "属性不存在"}
+                if existing["is_system"] == 1 and existing["attr_key"] != attr_key:
+                    return {"ok": False, "error": "系统内置属性的标识键不能修改"}
+
+                conn.execute(
+                    """
+                    UPDATE account_attributes SET
+                        attr_label = ?,
+                        attr_type = ?,
+                        bound_platforms = ?,
+                        dict_type = ?,
+                        sort_order = ?,
+                        is_filter = ?,
+                        is_required = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (attr_label, attr_type, bound_str, dict_type, sort_order, is_filter, is_required, int(attr_id)),
+                )
+                target_id = int(attr_id)
+            else:
+                conflict = conn.execute("SELECT id FROM account_attributes WHERE attr_key = ?", (attr_key,)).fetchone()
+                if conflict:
+                    return {"ok": False, "error": f"属性标识键 '{attr_key}' 已存在"}
+                is_system = 1 if data.get("is_system") in (1, True, "1", "true") else 0
+                cur = conn.execute(
+                    """
+                    INSERT INTO account_attributes
+                    (attr_key, attr_label, attr_type, bound_platforms, dict_type, sort_order, is_system, is_required, is_filter)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (attr_key, attr_label, attr_type, bound_str, dict_type, sort_order, is_system, is_required, is_filter),
+                )
+                target_id = cur.lastrowid
+
+        return {"ok": True, "attribute": self.get_attribute(target_id)}
+
+    def delete_attribute(self, attr_id: int) -> dict:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM account_attributes WHERE id = ?", (int(attr_id),)).fetchone()
+            if not existing:
+                return {"ok": False, "error": "属性不存在"}
+            if existing["is_system"] == 1:
+                return {"ok": False, "error": "系统内置属性不可删除"}
+            conn.execute("DELETE FROM account_attributes WHERE id = ?", (int(attr_id),))
+        return {"ok": True}
+
+    def update_attribute_bindings(self, attr_id: int, bound_platforms: str | list) -> dict:
+        if isinstance(bound_platforms, (list, tuple)):
+            if not bound_platforms or "All" in bound_platforms:
+                bound_str = "All"
+            else:
+                bound_str = json.dumps(list(bound_platforms), ensure_ascii=False)
+        elif isinstance(bound_platforms, str):
+            bound_str = bound_platforms.strip() or "All"
+        else:
+            bound_str = "All"
+
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM account_attributes WHERE id = ?", (int(attr_id),)).fetchone()
+            if not existing:
+                return {"ok": False, "error": "属性不存在"}
+            conn.execute(
+                "UPDATE account_attributes SET bound_platforms = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (bound_str, int(attr_id)),
+            )
+        return {"ok": True, "attribute": self.get_attribute(int(attr_id))}

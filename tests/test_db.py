@@ -287,3 +287,76 @@ def test_device_tags_and_system_dicts(tmp_path: Path):
     del_claude = [d for d in svc.list_system_dicts("account_type") if d["dict_key"] == "Claude"][0]
     del_claude_res = svc.delete_system_dict(del_claude["id"])
     assert del_claude_res["ok"] is True
+
+
+def test_attributes_and_custom_fields(tmp_path: Path):
+    db_file = tmp_path / "data" / "accounts.db"
+    svc = DatabaseService(db_file)
+
+    # 1. Default seeded system attributes
+    attrs = svc.list_attributes()
+    assert len(attrs) >= 3
+    attr_keys = {a["attr_key"]: a for a in attrs}
+    assert "health_status" in attr_keys
+    assert "device_tag" in attr_keys
+    assert "antigravity_tier" in attr_keys
+
+    health_attr = attr_keys["health_status"]
+    assert health_attr["attr_type"] == "select"
+    assert health_attr["bound_platforms"] == "All"
+    assert health_attr["is_system"] == 1
+    assert health_attr["is_filter"] == 1
+
+    device_attr = attr_keys["device_tag"]
+    assert device_attr["attr_type"] == "select"
+    assert "Google" in device_attr["bound_platforms"]
+    assert device_attr["is_system"] == 1
+
+    tier_attr = attr_keys["antigravity_tier"]
+    assert tier_attr["attr_type"] == "select"
+    assert "Google" in tier_attr["bound_platforms"]
+    assert tier_attr["is_system"] == 1
+
+    # 2. Add custom attribute
+    save_res = svc.save_attribute({
+        "attr_key": "org_team",
+        "attr_label": "所属团队",
+        "attr_type": "text",
+        "bound_platforms": ["WorkBuddy"],
+        "sort_order": 50,
+        "is_system": 0,
+    })
+    assert save_res["ok"] is True
+    created_id = save_res["attribute"]["id"]
+
+    # 3. Update attribute bindings
+    bind_res = svc.update_attribute_bindings(device_attr["id"], ["Google", "WorkBuddy"])
+    assert bind_res["ok"] is True
+    assert "WorkBuddy" in bind_res["attribute"]["bound_platforms"]
+
+    # 4. Delete attribute
+    del_sys_res = svc.delete_attribute(health_attr["id"])
+    assert del_sys_res["ok"] is False
+    assert "系统内置" in del_sys_res["error"]
+
+    del_custom_res = svc.delete_attribute(created_id)
+    assert del_custom_res["ok"] is True
+    assert not any(a["attr_key"] == "org_team" for a in svc.list_attributes())
+
+    # 5. Account custom fields persistence
+    acc = svc.add_account({
+        "account_type": "WorkBuddy",
+        "account": "custom_team@workbuddy.ai",
+        "password": "Password123",
+        "custom_fields": {"project_id": "proj_999"},
+    })
+    assert acc["custom_fields"].get("project_id") == "proj_999"
+
+    loaded = [a for a in svc.list_accounts() if a["id"] == acc["id"]][0]
+    assert loaded["custom_fields"].get("project_id") == "proj_999"
+
+    updated = svc.update_account(acc["id"], {
+        "custom_fields": {"project_id": "proj_888", "role": "admin"},
+    })
+    assert updated["custom_fields"].get("project_id") == "proj_888"
+    assert updated["custom_fields"].get("role") == "admin"
