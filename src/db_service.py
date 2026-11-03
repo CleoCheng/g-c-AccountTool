@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 import json
 import sqlite3
@@ -333,9 +334,10 @@ class DatabaseService:
             query += (
                 " AND (account LIKE ? OR recovery_email LIKE ? OR reg_region LIKE ? "
                 "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? "
-                "OR health_status LIKE ? OR antigravity_tier LIKE ? OR device_tag LIKE ? OR account_type LIKE ?)"
+                "OR health_status LIKE ? OR antigravity_tier LIKE ? OR device_tag LIKE ? OR account_type LIKE ? "
+                "OR custom_fields_json LIKE ?)"
             )
-            params.extend([kw, kw, kw, kw, kw, kw, kw, kw, kw, kw, kw])
+            params.extend([kw, kw, kw, kw, kw, kw, kw, kw, kw, kw, kw, kw])
         query += " ORDER BY id ASC"
 
         with self._connect() as conn:
@@ -456,17 +458,17 @@ class DatabaseService:
         existing = self.get_account(account_id)
         if not existing:
             return None
-        merged = dict(data)
-        if "health_status" not in merged:
-            merged["health_status"] = existing.get("health_status", "可用")
-        if "antigravity_tier" not in merged:
-            merged["antigravity_tier"] = existing.get("antigravity_tier", "无")
-        if "device_tag" not in merged:
-            merged["device_tag"] = existing.get("device_tag", "主机")
-        if "custom_fields" not in merged and "custom_fields_json" not in merged:
-            merged["custom_fields_json"] = existing.get("custom_fields_json") or "{}"
-        if "password_modified" not in merged:
-            if merged.get("password") and existing.get("password") and merged["password"].strip() != existing["password"]:
+        merged = dict(existing)
+        merged.update(data)
+        if "custom_fields" in data:
+            merged["custom_fields"] = data["custom_fields"]
+            merged.pop("custom_fields_json", None)
+        elif "custom_fields_json" in data:
+            merged["custom_fields_json"] = data["custom_fields_json"]
+            merged.pop("custom_fields", None)
+
+        if "password_modified" not in data:
+            if data.get("password") and existing.get("password") and data["password"].strip() != existing["password"]:
                 merged["password_modified"] = 1
             else:
                 merged["password_modified"] = existing.get("password_modified", 0)
@@ -882,8 +884,12 @@ class DatabaseService:
 
         if not attr_key:
             return {"ok": False, "error": "属性标识键不能为空"}
+        if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]{1,63}$", attr_key):
+            return {"ok": False, "error": "属性标识键必须以字母开头，且仅包含字母、数字和下划线 (2-64位)"}
         if not attr_label:
             return {"ok": False, "error": "属性显示名称不能为空"}
+        if attr_type == "select" and not dict_type:
+            dict_type = attr_key
 
         with self._connect() as conn:
             if attr_id:

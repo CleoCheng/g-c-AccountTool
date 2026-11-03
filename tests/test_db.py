@@ -360,3 +360,25 @@ def test_attributes_and_custom_fields(tmp_path: Path):
     })
     assert updated["custom_fields"].get("project_id") == "proj_888"
     assert updated["custom_fields"].get("role") == "admin"
+
+    # 6. Default dict_type for select attributes
+    save_sel = svc.save_attribute({
+        "attr_key": "team_role",
+        "attr_label": "角色",
+        "attr_type": "select",
+        "bound_platforms": ["WorkBuddy"],
+    })
+    assert save_sel["ok"] is True
+    assert save_sel["attribute"]["dict_type"] == "team_role"
+
+    # 7. attr_key format validation
+    bad_key_res = svc.save_attribute({
+        "attr_key": "123 bad-key!",
+        "attr_label": "非法键",
+    })
+    assert bad_key_res["ok"] is False
+
+    # 8. custom_fields searchable
+    search_res = svc.list_accounts(search="proj_888")
+    assert len(search_res) == 1
+    assert search_res[0]["account"] == "custom_team@workbuddy.ai"

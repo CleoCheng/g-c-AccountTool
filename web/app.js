@@ -195,11 +195,18 @@ function renderFilterDropdowns() {
     (a) => a.is_filter && a.attr_type === "select" && isAttributeApplicable(a, activePlatform)
   );
 
-  // If built-in filters are hidden for activePlatform, reset their values
+  // If built-in or custom filters are hidden for activePlatform, reset their values
   const applicableKeys = new Set(applicableAttrs.map((a) => a.attr_key));
   if (!applicableKeys.has("health_status")) state.healthFilter = "All";
   if (!applicableKeys.has("device_tag")) state.deviceFilter = "All";
   if (!applicableKeys.has("antigravity_tier")) state.antigravityFilter = "All";
+  if (state.customFilters) {
+    Object.keys(state.customFilters).forEach((k) => {
+      if (!applicableKeys.has(k)) {
+        state.customFilters[k] = "All";
+      }
+    });
+  }
 
   container.innerHTML = "";
 
@@ -230,16 +237,16 @@ function renderFilterDropdowns() {
 
     if (attr.attr_key === "health_status") {
       sel.value = state.healthFilter || "All";
-      sel.onchange = (e) => onHealthSelectChange(e.target.value);
+      sel.onchange = () => onHealthSelectChange(sel.value);
     } else if (attr.attr_key === "antigravity_tier") {
       sel.value = state.antigravityFilter || "All";
-      sel.onchange = (e) => onAntigravitySelectChange(e.target.value);
+      sel.onchange = () => onAntigravitySelectChange(sel.value);
     } else if (attr.attr_key === "device_tag") {
       sel.value = state.deviceFilter || "All";
-      sel.onchange = (e) => setDeviceFilter(e.target.value);
+      sel.onchange = () => setDeviceFilter(sel.value);
     } else {
       sel.value = state.customFilters?.[attr.attr_key] || "All";
-      sel.onchange = (e) => setCustomFilter(attr.attr_key, e.target.value);
+      sel.onchange = () => setCustomFilter(attr.attr_key, sel.value);
     }
 
     wrap.appendChild(sel);
@@ -825,7 +832,7 @@ function renderCardItem(item, remaining) {
     : "";
 
   return `
-    <article class="u-card health-border-${hMeta.key} ag-card-${agMeta.key} ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
+    <article class="u-card health-border-${hMeta.key} ag-card-${showAgBadge ? agMeta.key : "none"} ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
       <!-- Line 1: Header (Account Identity & 1-Click Health Status Badge) -->
       <div class="u-row-top">
         <div class="u-identity">
@@ -1030,7 +1037,7 @@ function renderTableView(remaining, list = state.accounts) {
         : "";
 
       return `
-        <tr class="ag-row-${agMeta.key}">
+        <tr class="ag-row-${showAgBadge ? agMeta.key : "none"}">
           <td>
             <div class="tb-col-platform">
               <span class="tb-idx">${idx + 1}</span>
@@ -1609,14 +1616,6 @@ function flashCopyButton(btnEl) {
 }
 
 // Filters & Search
-function setFilterType(type) {
-  state.filterType = type || "All";
-  document.querySelectorAll("#filter-tabs .seg-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.type === state.filterType);
-  });
-  syncTopBarPills();
-  loadDashboard();
-}
 
 function setStatusFilter(status) {
   state.statusFilter = status;
@@ -2437,9 +2436,6 @@ function syncCustomSelect(selectEl) {
       wrap.classList.remove("drop-up");
       syncCustomSelect(selectEl);
       selectEl.dispatchEvent(new Event("change", { bubbles: true }));
-      if (typeof selectEl.onchange === "function") {
-        selectEl.onchange();
-      }
     });
 
     menu.appendChild(item);
@@ -2686,12 +2682,15 @@ function populateDictTypeOptions(selectedType = "") {
   if (!dictTypes.includes("health_status")) dictTypes.push("health_status");
   if (!dictTypes.includes("antigravity_tier")) dictTypes.push("antigravity_tier");
 
-  sel.innerHTML = dictTypes
-    .map(
-      (dt) =>
-        `<option value="${escapeHtml(dt)}" ${dt === selectedType ? "selected" : ""}>${escapeHtml(dt)}</option>`
-    )
-    .join("");
+  const defOpt = `<option value="">自动以标识键作为字典分类 (推荐)</option>`;
+  sel.innerHTML =
+    defOpt +
+    dictTypes
+      .map(
+        (dt) =>
+          `<option value="${escapeHtml(dt)}" ${dt === selectedType ? "selected" : ""}>${escapeHtml(dt)}</option>`
+      )
+      .join("");
   syncCustomSelect(sel);
 }
 
