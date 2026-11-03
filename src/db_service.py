@@ -14,7 +14,31 @@ from src.totp_service import (
 
 
 VALID_HEALTH_STATUSES = ["可用", "不可用", "封号", "人机", "短信", "验证"]
-VALID_ANTIGRAVITY_TIERS = ["无", "蓝色背景色Pro", "金色背景色Pro"]
+VALID_ANTIGRAVITY_TIERS = ["无", "蓝色Pro", "金色Pro", "蓝色背景色Pro", "金色背景色Pro"]
+VALID_DEVICE_TAGS = ["主机", "iPhone", "Pad"]
+
+DEFAULT_DICTS = [
+    # 账号类型
+    ("account_type", "ChatGPT", "ChatGPT", "ChatGPT", "chatgpt", "🤖", 1, 1, 1),
+    ("account_type", "Google", "Google", "Google", "google", "🔍", 2, 0, 1),
+    ("account_type", "WorkBuddy", "WorkBuddy", "WorkBuddy", "workbuddy", "💼", 3, 0, 0),
+    ("account_type", "Qcoder", "Qcoder", "Qcoder", "qcoder", "⚡", 4, 0, 0),
+    # 设备标记
+    ("device_tag", "主机", "主机", "主机", "host", "🖥️", 1, 1, 1),
+    ("device_tag", "iPhone", "iPhone", "iPhone", "iphone", "📱", 2, 0, 1),
+    ("device_tag", "Pad", "Pad", "Pad", "pad", "📱", 3, 0, 1),
+    # 可用状态
+    ("health_status", "可用", "可用", "可用", "available", "🟢", 1, 1, 1),
+    ("health_status", "不可用", "不可用", "不可用", "unavailable", "⚪", 2, 0, 1),
+    ("health_status", "封号", "封号", "封号", "banned", "🔴", 3, 0, 1),
+    ("health_status", "人机", "人机", "人机", "captcha", "🟠", 4, 0, 1),
+    ("health_status", "短信", "短信", "短信", "sms", "🟣", 5, 0, 1),
+    ("health_status", "验证", "验证", "验证", "verify", "🔵", 6, 0, 1),
+    # Antigravity Pro 选项
+    ("antigravity_tier", "无", "无", "无", "none", "⚪", 1, 1, 1),
+    ("antigravity_tier", "蓝色Pro", "Pro", "蓝色Pro", "blue", "💎", 2, 0, 1),
+    ("antigravity_tier", "金色Pro", "Pro", "金色Pro", "gold", "👑", 3, 0, 1),
+]
 
 
 def _parse_date(d_str: str) -> date | None:
@@ -81,6 +105,7 @@ class DatabaseService:
                     account_type TEXT NOT NULL DEFAULT 'ChatGPT',
                     health_status TEXT NOT NULL DEFAULT '可用',
                     antigravity_tier TEXT NOT NULL DEFAULT '无',
+                    device_tag TEXT NOT NULL DEFAULT '主机',
                     account TEXT NOT NULL,
                     password TEXT NOT NULL,
                     password_modified INTEGER DEFAULT 0,
@@ -105,6 +130,7 @@ class DatabaseService:
             migrations = {
                 "health_status": "ALTER TABLE accounts ADD COLUMN health_status TEXT DEFAULT '可用'",
                 "antigravity_tier": "ALTER TABLE accounts ADD COLUMN antigravity_tier TEXT DEFAULT '无'",
+                "device_tag": "ALTER TABLE accounts ADD COLUMN device_tag TEXT DEFAULT '主机'",
                 "password_modified": "ALTER TABLE accounts ADD COLUMN password_modified INTEGER DEFAULT 0",
                 "initial_secret_key": "ALTER TABLE accounts ADD COLUMN initial_secret_key TEXT DEFAULT ''",
                 "twofa_modified": "ALTER TABLE accounts ADD COLUMN twofa_modified INTEGER DEFAULT 0",
@@ -116,12 +142,44 @@ class DatabaseService:
                 if col_name not in existing_cols:
                     conn.execute(ddl)
 
-            # Ensure any null or empty health_status gets default '可用'
+            # Ensure any null or empty fields have valid defaults
             conn.execute("UPDATE accounts SET health_status = '可用' WHERE health_status IS NULL OR health_status = ''")
-            # Ensure any null or empty antigravity_tier gets default '无'
             conn.execute("UPDATE accounts SET antigravity_tier = '无' WHERE antigravity_tier IS NULL OR antigravity_tier = ''")
+            conn.execute("UPDATE accounts SET device_tag = '主机' WHERE device_tag IS NULL OR device_tag = ''")
             # Deactivated accounts default to '不可用'
             conn.execute("UPDATE accounts SET health_status = '不可用' WHERE deactivated_date IS NOT NULL AND deactivated_date != '' AND health_status = '可用'")
+
+            # System Dictionaries Table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS system_dicts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dict_type TEXT NOT NULL,
+                    dict_key TEXT NOT NULL,
+                    dict_label TEXT NOT NULL,
+                    dict_value TEXT NOT NULL,
+                    color_class TEXT DEFAULT '',
+                    icon TEXT DEFAULT '',
+                    sort_order INTEGER DEFAULT 0,
+                    is_default INTEGER DEFAULT 0,
+                    is_system INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_dict_type_key ON system_dicts(dict_type, dict_key);")
+
+            # Seed default dictionaries
+            for dt, dk, dl, dv, cc, icon, so, is_def, is_sys in DEFAULT_DICTS:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO system_dicts 
+                    (dict_type, dict_key, dict_label, dict_value, color_class, icon, sort_order, is_default, is_system)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (dt, dk, dl, dv, cc, icon, so, is_def, is_sys),
+                )
 
             # Backfill permanent paired fingerprint config for any account missing it
             rows = conn.execute(
@@ -143,7 +201,7 @@ class DatabaseService:
                 raw_isk = r["initial_secret_key"] or ""
                 clean_sk = normalize_secret(raw_sk)
                 clean_isk = normalize_secret(raw_isk)
-                if raw_sk != clean_sk or raw_isk != clean_isk:
+                if clean_sk != raw_sk or clean_isk != raw_isk:
                     conn.execute(
                         "UPDATE accounts SET secret_key = ?, initial_secret_key = ? WHERE id = ?",
                         (clean_sk, clean_isk, r["id"]),
@@ -153,7 +211,14 @@ class DatabaseService:
         item = dict(row)
         item["health_status"] = (item.get("health_status") or "可用").strip()
         raw_ag = (item.get("antigravity_tier") or "无").strip()
-        item["antigravity_tier"] = raw_ag if raw_ag in VALID_ANTIGRAVITY_TIERS else "无"
+        if raw_ag in ("蓝色Pro", "蓝色背景色Pro", "蓝Pro"):
+            item["antigravity_tier"] = "蓝色Pro"
+        elif raw_ag in ("金色Pro", "金色背景色Pro", "金Pro"):
+            item["antigravity_tier"] = "金色Pro"
+        else:
+            item["antigravity_tier"] = "无"
+
+        item["device_tag"] = (item.get("device_tag") or "主机").strip()
         item["password_modified"] = int(item.get("password_modified") or 0)
         item["twofa_modified"] = int(item.get("twofa_modified") or 0)
         item["secret_key"] = normalize_secret(item.get("secret_key") or "")
@@ -188,12 +253,16 @@ class DatabaseService:
         status: str = "",
         health_status: str = "",
         antigravity_tier: str = "",
+        device_tag: str = "",
     ) -> list[dict]:
         query = "SELECT * FROM accounts WHERE 1=1"
         params: list = []
         if account_type and account_type != "All":
             query += " AND account_type = ?"
             params.append(account_type)
+        if device_tag and device_tag != "All":
+            query += " AND device_tag = ?"
+            params.append(device_tag)
         if status == "active":
             query += " AND (deactivated_date IS NULL OR deactivated_date = '')"
         elif status == "deactivated":
@@ -207,15 +276,20 @@ class DatabaseService:
                 query += " AND health_status = ?"
                 params.append(health_status)
         if antigravity_tier and antigravity_tier != "All":
-            query += " AND antigravity_tier = ?"
-            params.append(antigravity_tier)
+            if antigravity_tier in ("蓝色Pro", "蓝色背景色Pro", "蓝Pro"):
+                query += " AND (antigravity_tier = '蓝色Pro' OR antigravity_tier = '蓝色背景色Pro' OR antigravity_tier = '蓝Pro')"
+            elif antigravity_tier in ("金色Pro", "金色背景色Pro", "金Pro"):
+                query += " AND (antigravity_tier = '金色Pro' OR antigravity_tier = '金色背景色Pro' OR antigravity_tier = '金Pro')"
+            else:
+                query += " AND (antigravity_tier = '无' OR antigravity_tier IS NULL OR antigravity_tier = '')"
         if search and search.strip():
             kw = f"%{search.strip()}%"
             query += (
                 " AND (account LIKE ? OR recovery_email LIKE ? OR reg_region LIKE ? "
-                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? OR health_status LIKE ? OR antigravity_tier LIKE ?)"
+                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? "
+                "OR health_status LIKE ? OR antigravity_tier LIKE ? OR device_tag LIKE ? OR account_type LIKE ?)"
             )
-            params.extend([kw, kw, kw, kw, kw, kw, kw, kw, kw])
+            params.extend([kw, kw, kw, kw, kw, kw, kw, kw, kw, kw, kw])
         query += " ORDER BY id ASC"
 
         with self._connect() as conn:
@@ -232,9 +306,15 @@ class DatabaseService:
         health_status = (data.get("health_status") or "可用").strip()
         if health_status not in VALID_HEALTH_STATUSES:
             health_status = "可用"
-        antigravity_tier = (data.get("antigravity_tier") or "无").strip()
-        if antigravity_tier not in VALID_ANTIGRAVITY_TIERS:
+        raw_ag = (data.get("antigravity_tier") or "无").strip()
+        if raw_ag in ("蓝色Pro", "蓝色背景色Pro", "蓝Pro"):
+            antigravity_tier = "蓝色Pro"
+        elif raw_ag in ("金色Pro", "金色背景色Pro", "金Pro"):
+            antigravity_tier = "金色Pro"
+        else:
             antigravity_tier = "无"
+
+        device_tag = (data.get("device_tag") or "主机").strip()
         account = (data.get("account") or "").strip()
         password = (data.get("password") or "").strip()
         password_modified = 1 if data.get("password_modified") in (1, True, "1", "true") else 0
@@ -253,6 +333,7 @@ class DatabaseService:
             account_type,
             health_status,
             antigravity_tier,
+            device_tag,
             account,
             password,
             password_modified,
@@ -274,15 +355,15 @@ class DatabaseService:
             cur = conn.execute(
                 """
                 INSERT INTO accounts (
-                    account_type, health_status, antigravity_tier, account, password, password_modified, recovery_email,
+                    account_type, health_status, antigravity_tier, device_tag, account, password, password_modified, recovery_email,
                     secret_key, initial_secret_key, twofa_modified,
                     purchase_date, deactivated_date, reg_year, reg_region, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 fields,
             )
             new_id = cur.lastrowid
-            fp = generate_fingerprint_config(new_id, fields[3], proxy=proxy)
+            fp = generate_fingerprint_config(new_id, fields[4], proxy=proxy)
             conn.execute(
                 "UPDATE accounts SET fp_config_json = ? WHERE id = ?",
                 (json.dumps(fp, ensure_ascii=False), new_id),
@@ -301,10 +382,10 @@ class DatabaseService:
                 cur = conn.execute(
                     """
                     INSERT INTO accounts (
-                        account_type, health_status, antigravity_tier, account, password, password_modified, recovery_email,
+                        account_type, health_status, antigravity_tier, device_tag, account, password, password_modified, recovery_email,
                         secret_key, initial_secret_key, twofa_modified,
                         purchase_date, deactivated_date, reg_year, reg_region, note
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     fields,
                 )
@@ -326,13 +407,15 @@ class DatabaseService:
             merged["health_status"] = existing.get("health_status", "可用")
         if "antigravity_tier" not in merged:
             merged["antigravity_tier"] = existing.get("antigravity_tier", "无")
+        if "device_tag" not in merged:
+            merged["device_tag"] = existing.get("device_tag", "主机")
         if "password_modified" not in merged:
             if merged.get("password") and existing.get("password") and merged["password"].strip() != existing["password"]:
                 merged["password_modified"] = 1
             else:
                 merged["password_modified"] = existing.get("password_modified", 0)
         fields = self._prepare_fields(merged)
-        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[3])
+        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[4])
         if not fp_cfg.get("node_locked"):
             if "proxy" in data:
                 fp_cfg["proxy"] = (data.get("proxy") or "").strip()
@@ -346,6 +429,7 @@ class DatabaseService:
                     account_type = ?,
                     health_status = ?,
                     antigravity_tier = ?,
+                    device_tag = ?,
                     account = ?,
                     password = ?,
                     password_modified = ?,
@@ -469,7 +553,11 @@ class DatabaseService:
 
     def set_antigravity_tier(self, account_id: int, antigravity_tier: str) -> dict | None:
         tier_val = (antigravity_tier or "无").strip()
-        if tier_val not in VALID_ANTIGRAVITY_TIERS:
+        if tier_val in ("蓝色Pro", "蓝色背景色Pro", "蓝Pro"):
+            tier_val = "蓝色Pro"
+        elif tier_val in ("金色Pro", "金色背景色Pro", "金Pro"):
+            tier_val = "金色Pro"
+        else:
             tier_val = "无"
         with self._connect() as conn:
             conn.execute(
@@ -478,6 +566,113 @@ class DatabaseService:
             )
             row = conn.execute("SELECT * FROM accounts WHERE id = ?", (int(account_id),)).fetchone()
         return self._enrich_row(row) if row else None
+
+    def set_device_tag(self, account_id: int, device_tag: str) -> dict | None:
+        tag_val = (device_tag or "主机").strip()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET device_tag = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (tag_val, int(account_id)),
+            )
+            row = conn.execute("SELECT * FROM accounts WHERE id = ?", (int(account_id),)).fetchone()
+        return self._enrich_row(row) if row else None
+
+    # -------------------------------------------------------------
+    # System Dictionaries CRUD
+    # -------------------------------------------------------------
+    def list_system_dicts(self, dict_type: str | None = None) -> list[dict]:
+        with self._connect() as conn:
+            if dict_type:
+                rows = conn.execute(
+                    "SELECT * FROM system_dicts WHERE dict_type = ? ORDER BY sort_order ASC, id ASC",
+                    (dict_type,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM system_dicts ORDER BY dict_type ASC, sort_order ASC, id ASC"
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_system_dict(self, data: dict) -> dict:
+        item_id = data.get("id")
+        dict_type = (data.get("dict_type") or "").strip()
+        dict_key = (data.get("dict_key") or "").strip()
+        dict_label = (data.get("dict_label") or dict_key).strip()
+        dict_value = (data.get("dict_value") or dict_key).strip()
+        color_class = (data.get("color_class") or "").strip()
+        icon = (data.get("icon") or "").strip()
+        sort_order = int(data.get("sort_order") or 0)
+        is_default = 1 if data.get("is_default") in (1, True, "1", "true") else 0
+
+        if not dict_type or not dict_key:
+            return {"ok": False, "error": "字典分类和标识键不能为空"}
+
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM system_dicts WHERE dict_type = ? AND dict_key = ?",
+                (dict_type, dict_key),
+            ).fetchone()
+            if existing and (not item_id or int(existing["id"]) != int(item_id)):
+                return {"ok": False, "error": f"字典项「{dict_key}」在「{dict_type}」中已存在"}
+
+            if is_default:
+                conn.execute(
+                    "UPDATE system_dicts SET is_default = 0 WHERE dict_type = ?",
+                    (dict_type,),
+                )
+
+            if item_id:
+                conn.execute(
+                    """
+                    UPDATE system_dicts SET
+                        dict_label = ?, dict_value = ?, color_class = ?, icon = ?,
+                        sort_order = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (dict_label, dict_value, color_class, icon, sort_order, is_default, int(item_id)),
+                )
+                row = conn.execute("SELECT * FROM system_dicts WHERE id = ?", (int(item_id),)).fetchone()
+            else:
+                cur = conn.execute(
+                    """
+                    INSERT INTO system_dicts 
+                    (dict_type, dict_key, dict_label, dict_value, color_class, icon, sort_order, is_default, is_system)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    """,
+                    (dict_type, dict_key, dict_label, dict_value, color_class, icon, sort_order, is_default),
+                )
+                row = conn.execute("SELECT * FROM system_dicts WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return {"ok": True, "dict": dict(row) if row else None}
+
+    def delete_system_dict(self, dict_id: int) -> dict:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM system_dicts WHERE id = ?", (int(dict_id),)).fetchone()
+            if not row:
+                return {"ok": False, "error": "字典项不存在"}
+            if row["is_system"]:
+                return {"ok": False, "error": "内置系统字典项受系统保护，不可删除"}
+
+            dict_type = row["dict_type"]
+            dict_key = row["dict_key"]
+            if dict_type == "account_type":
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE account_type = ?", (dict_key,)).fetchone()[0]
+                if cnt > 0:
+                    return {"ok": False, "error": f"当前有 {cnt} 个账号正在使用类型「{dict_key}」，请先修改或迁移账号后再删除"}
+            elif dict_type == "device_tag":
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE device_tag = ?", (dict_key,)).fetchone()[0]
+                if cnt > 0:
+                    return {"ok": False, "error": f"当前有 {cnt} 个账号标记为设备「{dict_key}」，请先修改账号后再删除"}
+            elif dict_type == "health_status":
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (dict_key,)).fetchone()[0]
+                if cnt > 0:
+                    return {"ok": False, "error": f"当前有 {cnt} 个账号处于状态「{dict_key}」，不可直接删除"}
+            elif dict_type == "antigravity_tier":
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = ?", (dict_key,)).fetchone()[0]
+                if cnt > 0:
+                    return {"ok": False, "error": f"当前有 {cnt} 个账号处于Pro选项「{dict_key}」，不可直接删除"}
+
+            conn.execute("DELETE FROM system_dicts WHERE id = ?", (int(dict_id),))
+            return {"ok": True}
 
     def delete_account(self, account_id: int) -> bool:
         with self._connect() as conn:
@@ -493,6 +688,21 @@ class DatabaseService:
                 "SELECT COUNT(*) FROM accounts WHERE health_status = '可用' AND (deactivated_date IS NULL OR deactivated_date = '')"
             ).fetchone()[0]
             unavailable = total - available
+
+            # Dynamic account_type counts
+            type_counts = {}
+            dict_types = conn.execute("SELECT dict_key FROM system_dicts WHERE dict_type = 'account_type' ORDER BY sort_order ASC, id ASC").fetchall()
+            for r in dict_types:
+                k = r["dict_key"]
+                type_counts[k] = conn.execute("SELECT COUNT(*) FROM accounts WHERE account_type = ?", (k,)).fetchone()[0]
+
+            # Dynamic device_tag counts
+            device_counts = {}
+            dict_devices = conn.execute("SELECT dict_key FROM system_dicts WHERE dict_type = 'device_tag' ORDER BY sort_order ASC, id ASC").fetchall()
+            for r in dict_devices:
+                k = r["dict_key"]
+                device_counts[k] = conn.execute("SELECT COUNT(*) FROM accounts WHERE device_tag = ?", (k,)).fetchone()[0]
+
             health_counts = {}
             for hs in VALID_HEALTH_STATUSES:
                 if hs == "可用":
@@ -502,14 +712,24 @@ class DatabaseService:
                 else:
                     cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (hs,)).fetchone()[0]
                     health_counts[hs] = cnt
-            antigravity_counts = {}
-            for ag in VALID_ANTIGRAVITY_TIERS:
-                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = ?", (ag,)).fetchone()[0]
-                antigravity_counts[ag] = cnt
+
+            ag_none = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = '无' OR antigravity_tier IS NULL OR antigravity_tier = ''").fetchone()[0]
+            ag_blue = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = '蓝色Pro' OR antigravity_tier = '蓝色背景色Pro' OR antigravity_tier = '蓝Pro'").fetchone()[0]
+            ag_gold = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = '金色Pro' OR antigravity_tier = '金色背景色Pro' OR antigravity_tier = '金Pro'").fetchone()[0]
+            antigravity_counts = {
+                "无": ag_none,
+                "蓝色Pro": ag_blue,
+                "金色Pro": ag_gold,
+                "蓝色背景色Pro": ag_blue,
+                "金色背景色Pro": ag_gold,
+            }
+
         return {
             "total": total,
             "google": google,
             "chatgpt": chatgpt,
+            "types": type_counts,
+            "devices": device_counts,
             "other": total - google - chatgpt,
             "available": available,
             "unavailable": unavailable,

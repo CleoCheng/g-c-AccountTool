@@ -11,6 +11,9 @@ from src.totp_service import generate_totp, mask_secret, normalize_secret
 DEFAULT_SETTINGS = {
     "theme": "dark",
     "view_mode": "compact",
+    "default_account_type": "ChatGPT",
+    "default_device_tag": "主机",
+    "totp_interval": 30,
 }
 
 
@@ -43,24 +46,29 @@ class AccountApi:
         status: str = "All",
         health_status: str = "All",
         antigravity_tier: str = "All",
+        device_tag: str = "All",
     ) -> dict:
         status_filter = "" if status in ("", "All") else status
         health_filter = "" if health_status in ("", "All") else health_status
         ag_filter = "" if antigravity_tier in ("", "All") else antigravity_tier
+        device_filter = "" if device_tag in ("", "All") else device_tag
         accounts = self.db.list_accounts(
             account_type=account_type,
             search=search,
             status=status_filter,
             health_status=health_filter,
             antigravity_tier=ag_filter,
+            device_tag=device_filter,
         )
         stats = self.db.get_stats()
         settings = self._ensure_settings()
+        dicts = self.db.list_system_dicts()
         now = int(time.time())
         return {
             "accounts": accounts,
             "stats": stats,
             "settings": settings,
+            "dicts": dicts,
             "server_time": now,
             "remaining": 30 - (now % 30),
         }
@@ -172,6 +180,21 @@ class AccountApi:
         if not updated:
             return {"ok": False, "error": "账号不存在"}
         return {"ok": True, "account": updated}
+
+    def set_device_tag(self, account_id: int, device_tag: str) -> dict:
+        updated = self.db.set_device_tag(int(account_id), device_tag)
+        if not updated:
+            return {"ok": False, "error": "账号不存在"}
+        return {"ok": True, "account": updated}
+
+    def get_system_dicts(self, dict_type: str | None = None) -> list[dict]:
+        return self.db.list_system_dicts(dict_type)
+
+    def save_system_dict(self, data: dict) -> dict:
+        return self.db.save_system_dict(data)
+
+    def delete_system_dict(self, dict_id: int) -> dict:
+        return self.db.delete_system_dict(int(dict_id))
 
     def launch_browser(self, account_id: int) -> dict:
         import importlib

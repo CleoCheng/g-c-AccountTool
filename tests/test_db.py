@@ -19,6 +19,7 @@ def test_db_crud_and_export(tmp_path: Path):
     assert acc1["masked_password"] == "••••••••"
     assert acc1["masked_secret"] == "JBSW****3PXP"
     assert len(acc1["totp"]["code"]) == 6
+    assert acc1["device_tag"] == "主机"
 
     acc2 = svc.add_account(
         {
@@ -29,8 +30,10 @@ def test_db_crud_and_export(tmp_path: Path):
             "secret_key": "gezdgnbvgy3tqojqgezdgnbvgy3tqojq",
             "reg_year": "2024",
             "reg_region": "US",
+            "device_tag": "iPhone",
         }
     )
+    assert acc2["device_tag"] == "iPhone"
 
     all_items = svc.list_accounts()
     assert len(all_items) == 2
@@ -38,6 +41,10 @@ def test_db_crud_and_export(tmp_path: Path):
     google_only = svc.list_accounts(account_type="Google")
     assert len(google_only) == 1
     assert google_only[0]["account"] == "bob_google99@gmail.com"
+
+    iphone_only = svc.list_accounts(device_tag="iPhone")
+    assert len(iphone_only) == 1
+    assert iphone_only[0]["account"] == "bob_google99@gmail.com"
 
     exported = svc.export_accounts_text()
     assert "alice_demo01@example.com----DemoPass#2026!----JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" in exported
@@ -48,14 +55,12 @@ def test_db_crud_and_export(tmp_path: Path):
 
 
 def test_usage_duration_and_twofa_modified_toggle(tmp_path: Path):
-    # Deactivated account: 2026-10-19 -> 2026-10-29 = 10 days
     u_deact = compute_usage_info("2026-10-19", "2026-10-29", today_str="2026-10-30")
     assert u_deact["status"] == "deactivated"
     assert u_deact["status_label"] == "已停用"
     assert u_deact["days"] == 10
     assert u_deact["duration_text"] == "共使用 10 天"
 
-    # Active account: 2026-10-21 -> today (2026-10-30) = 9 days
     u_act = compute_usage_info("2026-10-21", "", today_str="2026-10-30")
     assert u_act["status"] == "active"
     assert u_act["status_label"] == "使用中"
@@ -91,7 +96,6 @@ def test_usage_duration_and_twofa_modified_toggle(tmp_path: Path):
     pwd_toggled_back = svc.set_password_modified(acc["id"], 0)
     assert pwd_toggled_back["password_modified"] == 0
 
-    # Updating password automatically marks password_modified = 1 if not specified
     updated = svc.update_account(
         acc["id"],
         {
@@ -107,7 +111,6 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     db_file = tmp_path / "data" / "accounts.db"
     svc = DatabaseService(db_file)
 
-    # 1. Default health_status is '可用'
     a1 = svc.add_account({
         "account_type": "ChatGPT",
         "account": "normal@chatgpt.com",
@@ -115,7 +118,6 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     })
     assert a1["health_status"] == "可用"
 
-    # 2. Add with explicit health_status
     a2 = svc.add_account({
         "account_type": "ChatGPT",
         "account": "banned@chatgpt.com",
@@ -132,14 +134,12 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     })
     assert a3["health_status"] == "人机"
 
-    # 3. Quick toggle via set_health_status
     up1 = svc.set_health_status(a1["id"], "短信")
     assert up1["health_status"] == "短信"
 
     up1_back = svc.set_health_status(a1["id"], "可用")
     assert up1_back["health_status"] == "可用"
 
-    # 4. Filter by health_status
     availables = svc.list_accounts(health_status="可用")
     assert len(availables) == 1
     assert availables[0]["account"] == "normal@chatgpt.com"
@@ -152,7 +152,6 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     assert len(captcha_list) == 1
     assert captcha_list[0]["account"] == "captcha@gmail.com"
 
-    # 5. Stats breakdown
     stats = svc.get_stats()
     assert stats["total"] == 3
     assert stats["available"] == 1
@@ -162,7 +161,6 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     assert stats["health"]["人机"] == 1
     assert stats["health"]["短信"] == 0
 
-    # 6. Deactivated accounts count as unavailable and are excluded from 可用
     a4 = svc.add_account({
         "account_type": "ChatGPT",
         "account": "deactivated_acc@example.com",
@@ -191,7 +189,6 @@ def test_antigravity_tier_and_filtering(tmp_path: Path):
     db_file = tmp_path / "data" / "accounts.db"
     svc = DatabaseService(db_file)
 
-    # 1. Default antigravity_tier is '无'
     a1 = svc.add_account({
         "account_type": "Google",
         "account": "free_user@gmail.com",
@@ -199,14 +196,13 @@ def test_antigravity_tier_and_filtering(tmp_path: Path):
     })
     assert a1["antigravity_tier"] == "无"
 
-    # 2. Add with explicit antigravity_tier
     a2 = svc.add_account({
         "account_type": "Google",
         "account": "blue_pro@gmail.com",
         "password": "Password123!",
-        "antigravity_tier": "蓝色背景色Pro",
+        "antigravity_tier": "蓝色Pro",
     })
-    assert a2["antigravity_tier"] == "蓝色背景色Pro"
+    assert a2["antigravity_tier"] == "蓝色Pro"
 
     a3 = svc.add_account({
         "account_type": "Google",
@@ -214,21 +210,19 @@ def test_antigravity_tier_and_filtering(tmp_path: Path):
         "password": "Password123!",
         "antigravity_tier": "金色背景色Pro",
     })
-    assert a3["antigravity_tier"] == "金色背景色Pro"
+    assert a3["antigravity_tier"] == "金色Pro"
 
-    # 3. Quick toggle via set_antigravity_tier
-    up1 = svc.set_antigravity_tier(a1["id"], "蓝色背景色Pro")
-    assert up1["antigravity_tier"] == "蓝色背景色Pro"
+    up1 = svc.set_antigravity_tier(a1["id"], "蓝色Pro")
+    assert up1["antigravity_tier"] == "蓝色Pro"
 
     up1_back = svc.set_antigravity_tier(a1["id"], "无")
     assert up1_back["antigravity_tier"] == "无"
 
-    # 4. Filter by antigravity_tier
-    blue_list = svc.list_accounts(antigravity_tier="蓝色背景色Pro")
+    blue_list = svc.list_accounts(antigravity_tier="蓝色Pro")
     assert len(blue_list) == 1
     assert blue_list[0]["account"] == "blue_pro@gmail.com"
 
-    gold_list = svc.list_accounts(antigravity_tier="金色背景色Pro")
+    gold_list = svc.list_accounts(antigravity_tier="金色Pro")
     assert len(gold_list) == 1
     assert gold_list[0]["account"] == "gold_pro@gmail.com"
 
@@ -236,8 +230,60 @@ def test_antigravity_tier_and_filtering(tmp_path: Path):
     assert len(none_list) == 1
     assert none_list[0]["account"] == "free_user@gmail.com"
 
-    # 5. Stats breakdown
     stats = svc.get_stats()
     assert stats["antigravity"]["无"] == 1
-    assert stats["antigravity"]["蓝色背景色Pro"] == 1
-    assert stats["antigravity"]["金色背景色Pro"] == 1
+    assert stats["antigravity"]["蓝色Pro"] == 1
+    assert stats["antigravity"]["金色Pro"] == 1
+
+
+def test_device_tags_and_system_dicts(tmp_path: Path):
+    db_file = tmp_path / "data" / "accounts.db"
+    svc = DatabaseService(db_file)
+
+    dicts = svc.list_system_dicts()
+    types = [d for d in dicts if d["dict_type"] == "account_type"]
+    devices = [d for d in dicts if d["dict_type"] == "device_tag"]
+    assert any(d["dict_key"] == "WorkBuddy" for d in types)
+    assert any(d["dict_key"] == "Qcoder" for d in types)
+    assert any(d["dict_key"] == "主机" for d in devices)
+    assert any(d["dict_key"] == "iPhone" for d in devices)
+    assert any(d["dict_key"] == "Pad" for d in devices)
+
+    a1 = svc.add_account({
+        "account_type": "WorkBuddy",
+        "account": "wb_user@workbuddy.ai",
+        "password": "Password123",
+        "device_tag": "主机",
+    })
+    assert a1["account_type"] == "WorkBuddy"
+    assert a1["device_tag"] == "主机"
+
+    up = svc.set_device_tag(a1["id"], "Pad")
+    assert up["device_tag"] == "Pad"
+
+    pad_list = svc.list_accounts(device_tag="Pad")
+    assert len(pad_list) == 1
+    assert pad_list[0]["account"] == "wb_user@workbuddy.ai"
+
+    wb_list = svc.list_accounts(account_type="WorkBuddy")
+    assert len(wb_list) == 1
+
+    save_res = svc.save_system_dict({
+        "dict_type": "account_type",
+        "dict_key": "Claude",
+        "dict_label": "Claude",
+        "color_class": "claude",
+        "icon": "🤖",
+        "sort_order": 10,
+    })
+    assert save_res["ok"] is True
+    assert save_res["dict"]["dict_key"] == "Claude"
+
+    del_wb = [d for d in svc.list_system_dicts("account_type") if d["dict_key"] == "WorkBuddy"][0]
+    del_wb_res = svc.delete_system_dict(del_wb["id"])
+    assert del_wb_res["ok"] is False
+    assert "正在使用" in del_wb_res["error"]
+
+    del_claude = [d for d in svc.list_system_dicts("account_type") if d["dict_key"] == "Claude"][0]
+    del_claude_res = svc.delete_system_dict(del_claude["id"])
+    assert del_claude_res["ok"] is True

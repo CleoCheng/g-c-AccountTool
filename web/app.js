@@ -1,11 +1,13 @@
 // State Management
 const state = {
   accounts: [],
-  stats: { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, health: {} },
+  stats: { total: 0, google: 0, chatgpt: 0, types: {}, devices: {}, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} },
+  dicts: [],
   filterType: "All",
   statusFilter: "All",
   healthFilter: "All",
   antigravityFilter: "All",
+  deviceFilter: "All",
   searchQuery: "",
   theme: "dark",
   viewMode: "compact", // 'compact' | 'full' | 'table'
@@ -19,6 +21,9 @@ const state = {
   selectedRegion: "全部",
   selectedProxyUrl: "http://127.0.0.1:17898",
   selectedNodeName: "",
+  // System Settings State
+  currentDictTab: "account_type",
+  editingDictId: null,
 };
 
 async function callApi(method, ...args) {
@@ -53,15 +58,20 @@ async function loadDashboard() {
       state.searchQuery,
       state.statusFilter,
       state.healthFilter,
-      state.antigravityFilter
+      state.antigravityFilter,
+      state.deviceFilter
     );
     state.accounts = data.accounts || [];
-    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} };
+    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, types: {}, devices: {}, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} };
+    if (data.dicts) {
+      state.dicts = data.dicts;
+    }
     if (data.settings) {
       applyTheme(data.settings.theme || "dark", false);
       const savedMode = data.settings.view_mode === "grid" ? "compact" : data.settings.view_mode || "compact";
       applyViewMode(savedMode, false);
     }
+    renderFilterDropdowns();
     renderStats();
     syncTopBarPills();
     syncAntigravitySelectStyle();
@@ -77,31 +87,130 @@ function renderStats() {
     if (el) el.textContent = val !== undefined && val !== null ? val : 0;
   };
   setEl("stat-total", state.stats.total);
-  setEl("stat-google", state.stats.google);
-  setEl("stat-chatgpt", state.stats.chatgpt);
   const h = state.stats.health || {};
   const avail = state.stats.available !== undefined ? state.stats.available : (h["可用"] || 0);
   const unavail = state.stats.unavailable !== undefined ? state.stats.unavailable : (h["不可用"] || 0);
   setEl("stat-health-available", avail);
   setEl("stat-health-unavailable", unavail);
+
+  // Dynamically populate and update topbar platform dropdown
+  const topSel = document.getElementById("topbar-platform-select");
+  if (topSel) {
+    const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
+    const typeCounts = state.stats.types || {};
+    let optionsHtml = `<option value="All">全部平台 (${state.stats.total || 0})</option>`;
+    if (typeDicts.length > 0) {
+      optionsHtml += typeDicts
+        .map((d) => {
+          const cnt = typeCounts[d.dict_key] !== undefined ? typeCounts[d.dict_key] : 0;
+          return `<option value="${escapeHtml(d.dict_key)}">${escapeHtml(d.dict_label || d.dict_key)} (${cnt})</option>`;
+        })
+        .join("");
+    } else {
+      optionsHtml += `
+        <option value="ChatGPT">ChatGPT (${state.stats.chatgpt || 0})</option>
+        <option value="Google">Google (${state.stats.google || 0})</option>
+      `;
+    }
+    topSel.innerHTML = optionsHtml;
+    topSel.value = state.filterType || "All";
+  }
 }
 
 function syncTopBarPills() {
   const isTotal =
     (state.filterType === "All" || !state.filterType) &&
     (state.healthFilter === "All" || !state.healthFilter) &&
-    (state.antigravityFilter === "All" || !state.antigravityFilter);
+    (state.antigravityFilter === "All" || !state.antigravityFilter) &&
+    (state.deviceFilter === "All" || !state.deviceFilter);
   const pillTotal = document.getElementById("stat-pill-total");
-  const pillGpt = document.getElementById("stat-pill-chatgpt");
-  const pillGgl = document.getElementById("stat-pill-google");
+  const pillPlatWrap = document.getElementById("stat-pill-platform-wrap");
   const pillAvail = document.getElementById("stat-pill-available");
   const pillUnavail = document.getElementById("stat-pill-unavailable");
 
   if (pillTotal) pillTotal.classList.toggle("active", isTotal);
-  if (pillGpt) pillGpt.classList.toggle("active", state.filterType === "ChatGPT");
-  if (pillGgl) pillGgl.classList.toggle("active", state.filterType === "Google");
+  if (pillPlatWrap) pillPlatWrap.classList.toggle("active", state.filterType !== "All");
   if (pillAvail) pillAvail.classList.toggle("active", state.healthFilter === "可用");
   if (pillUnavail) pillUnavail.classList.toggle("active", state.healthFilter === "不可用");
+}
+
+function renderFilterDropdowns() {
+  // 1. Platform Filter
+  const platSel = document.getElementById("platform-filter-select");
+  if (platSel) {
+    const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
+    let html = `<option value="All">全部平台</option>`;
+    if (typeDicts.length > 0) {
+      html += typeDicts
+        .map((d) => `<option value="${escapeHtml(d.dict_key)}">${d.icon || ""} ${escapeHtml(d.dict_label || d.dict_key)}</option>`)
+        .join("");
+    } else {
+      html += `
+        <option value="ChatGPT">🤖 ChatGPT</option>
+        <option value="Google">🔍 Google</option>
+      `;
+    }
+    platSel.innerHTML = html;
+    platSel.value = state.filterType || "All";
+  }
+
+  // 2. Health Filter
+  const healthSel = document.getElementById("health-filter-select");
+  if (healthSel) {
+    const healthDicts = (state.dicts || []).filter((d) => d.dict_type === "health_status");
+    if (healthDicts.length > 0) {
+      let html = `<option value="All">全部状态</option>`;
+      html += healthDicts
+        .map((d) => `<option value="${escapeHtml(d.dict_key)}">${d.icon || ""} ${escapeHtml(d.dict_label || d.dict_key)}</option>`)
+        .join("");
+      healthSel.innerHTML = html;
+      healthSel.value = state.healthFilter || "All";
+    }
+  }
+
+  // 3. Device Filter
+  const devSel = document.getElementById("device-filter-select");
+  if (devSel) {
+    const devDicts = (state.dicts || []).filter((d) => d.dict_type === "device_tag");
+    let html = `<option value="All">全部设备</option>`;
+    if (devDicts.length > 0) {
+      html += devDicts
+        .map((d) => `<option value="${escapeHtml(d.dict_key)}">${d.icon || "📱"} ${escapeHtml(d.dict_label || d.dict_key)}</option>`)
+        .join("");
+    } else {
+      html += `
+        <option value="主机">🖥️ 主机</option>
+        <option value="iPhone">📱 iPhone</option>
+        <option value="Pad">📱 Pad</option>
+      `;
+    }
+    devSel.innerHTML = html;
+    devSel.value = state.deviceFilter || "All";
+  }
+}
+
+function setDeviceFilter(dev) {
+  state.deviceFilter = dev || "All";
+  const sel = document.getElementById("device-filter-select");
+  if (sel && sel.value !== state.deviceFilter) {
+    sel.value = state.deviceFilter;
+  }
+  syncTopBarPills();
+  loadDashboard();
+}
+
+function setFilterType(type) {
+  state.filterType = type || "All";
+  const topSel = document.getElementById("topbar-platform-select");
+  if (topSel && topSel.value !== state.filterType) {
+    topSel.value = state.filterType;
+  }
+  const platSel = document.getElementById("platform-filter-select");
+  if (platSel && platSel.value !== state.filterType) {
+    platSel.value = state.filterType;
+  }
+  syncTopBarPills();
+  loadDashboard();
 }
 
 function onHealthSelectChange(val) {
@@ -122,9 +231,9 @@ function syncAntigravitySelectStyle() {
   const sel = document.getElementById("ag-filter-select");
   if (!sel) return;
   sel.classList.remove("ag-select-blue", "ag-select-gold", "ag-select-none");
-  if (state.antigravityFilter === "蓝色背景色Pro") {
+  if (state.antigravityFilter === "蓝色Pro" || state.antigravityFilter === "蓝色背景色Pro") {
     sel.classList.add("ag-select-blue");
-  } else if (state.antigravityFilter === "金色背景色Pro") {
+  } else if (state.antigravityFilter === "金色Pro" || state.antigravityFilter === "金色背景色Pro") {
     sel.classList.add("ag-select-gold");
   } else if (state.antigravityFilter === "无") {
     sel.classList.add("ag-select-none");
@@ -165,30 +274,43 @@ function getHealthMeta(status) {
 }
 
 function getAntigravityMeta(tier) {
-  switch (tier) {
-    case "蓝色背景色Pro":
-      return {
-        key: "blue",
-        label: "蓝色背景色Pro",
-        badgeText: "💎 蓝色背景色Pro",
-        dotClass: "dot-ag-blue",
-      };
-    case "金色背景色Pro":
-      return {
-        key: "gold",
-        label: "金色背景色Pro",
-        badgeText: "👑 金色背景色Pro",
-        dotClass: "dot-ag-gold",
-      };
-    case "无":
-    default:
-      return {
-        key: "none",
-        label: "无",
-        badgeText: "Antigravity: 无",
-        dotClass: "dot-ag-none",
-      };
+  const t = (tier || "无").trim();
+  if (t === "蓝色Pro" || t === "蓝色背景色Pro" || t === "蓝Pro") {
+    return {
+      key: "blue",
+      value: "蓝色Pro",
+      label: "Pro",
+      badgeText: "Pro",
+      dotClass: "dot-ag-blue",
+    };
   }
+  if (t === "金色Pro" || t === "金色背景色Pro" || t === "金Pro") {
+    return {
+      key: "gold",
+      value: "金色Pro",
+      label: "Pro",
+      badgeText: "Pro",
+      dotClass: "dot-ag-gold",
+    };
+  }
+  return {
+    key: "none",
+    value: "无",
+    label: "无",
+    badgeText: "无",
+    dotClass: "dot-ag-none",
+  };
+}
+
+function getDeviceMeta(tag) {
+  const t = (tag || "主机").trim();
+  if (t === "iPhone") {
+    return { key: "iphone", label: "iPhone", icon: "📱", badgeText: "📱 iPhone" };
+  }
+  if (t === "Pad") {
+    return { key: "pad", label: "Pad", icon: "📱", badgeText: "📱 Pad" };
+  }
+  return { key: "host", label: t, icon: "🖥️", badgeText: `🖥️ ${t}` };
 }
 
 function toggleHealthMenu(event, accountId) {
@@ -213,10 +335,36 @@ function toggleAntigravityMenu(event, accountId) {
   }
 }
 
+function toggleDeviceMenu(event, accountId) {
+  event.stopPropagation();
+  const menuEl = document.getElementById(`dev-menu-${accountId}`);
+  if (!menuEl) return;
+  const isShown = menuEl.style.display === "block";
+  closeAllHealthPopovers();
+  if (!isShown) {
+    menuEl.style.display = "block";
+  }
+}
+
 function closeAllHealthPopovers() {
-  document.querySelectorAll(".u-health-popover, .u-ag-popover").forEach((el) => {
+  document.querySelectorAll(".u-health-popover, .u-ag-popover, .u-device-popover").forEach((el) => {
     el.style.display = "none";
   });
+}
+
+async function onQuickSelectDevice(accountId, nextDevice) {
+  closeAllHealthPopovers();
+  try {
+    const res = await callApi("set_device_tag", accountId, nextDevice);
+    if (res && res.ok) {
+      showToast(`✓ 已标记设备为「${nextDevice}」`);
+      await loadDashboard();
+    } else {
+      showToast(res.error || "设备标记更新失败");
+    }
+  } catch (err) {
+    showToast("设备标记更新异常: " + err.message);
+  }
 }
 
 document.addEventListener("click", () => {
@@ -381,7 +529,32 @@ function renderCardItem(item, remaining) {
   const metaLeft = getUnifiedMetaSummary(item);
   const showDrawer = state.viewMode === "full" || !!state.expandedCards[item.id];
 
-  // 1-Click Quick Antigravity Option Marker Dropdown
+  const devMeta = getDeviceMeta(item.device_tag || "主机");
+
+  // 1-Click Quick Device Tag Dropdown (主机 / iPhone / Pad)
+  const devBadgeHtml = `
+    <div class="u-device-dropdown" data-acc-id="${item.id}">
+      <button class="u-device-btn dev-${devMeta.key}" onclick="toggleDeviceMenu(event, ${item.id})" title="点击切换设备标记">
+        <span>${devMeta.icon}</span>
+        <span>${escapeHtml(devMeta.label)}</span>
+        <span class="health-arrow">▾</span>
+      </button>
+      <div class="u-device-popover" id="dev-menu-${item.id}" style="display: none;">
+        <div class="popover-title">标记所在设备</div>
+        <button class="device-opt ${devMeta.label === '主机' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, '主机')">
+          <span>🖥️</span><span>主机 (主电脑)</span>
+        </button>
+        <button class="device-opt ${devMeta.label === 'iPhone' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, 'iPhone')">
+          <span>📱</span><span>iPhone (手机)</span>
+        </button>
+        <button class="device-opt ${devMeta.label === 'Pad' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, 'Pad')">
+          <span>📱</span><span>Pad (平板)</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  // 1-Click Quick Antigravity Option Marker Dropdown (纯净 Pro 标签)
   const agBadgeHtml = `
     <div class="u-ag-dropdown" data-acc-id="${item.id}">
       <button class="u-ag-btn ag-${agMeta.key}" onclick="toggleAntigravityMenu(event, ${item.id})" title="点击切换 Antigravity 选项标记">
@@ -390,15 +563,15 @@ function renderCardItem(item, remaining) {
         <span class="health-arrow">▾</span>
       </button>
       <div class="u-ag-popover" id="ag-menu-${item.id}" style="display: none;">
-        <div class="popover-title">Antigravity 选项标记</div>
+        <div class="popover-title">Antigravity 标记</div>
         <button class="ag-opt opt-none ${agMeta.key === 'none' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '无')">
-          <span class="badge-dot dot-ag-none"></span><span>无 (默认未标记)</span>
+          <span class="badge-dot dot-ag-none"></span><span>无 (未标记)</span>
         </button>
-        <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色背景色Pro')">
-          <span class="badge-dot dot-ag-blue"></span><span>💎 蓝色背景色Pro</span>
+        <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色Pro')">
+          <span class="badge-dot dot-ag-blue"></span><span>💎 Pro</span>
         </button>
-        <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色背景色Pro')">
-          <span class="badge-dot dot-ag-gold"></span><span>👑 金色背景色Pro</span>
+        <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色Pro')">
+          <span class="badge-dot dot-ag-gold"></span><span>👑 Pro</span>
         </button>
       </div>
     </div>
@@ -571,7 +744,8 @@ function renderCardItem(item, remaining) {
           ${pwdFlagHtml}
           ${twofaFlagHtml}
         </div>
-        <div class="u-sec-right">
+        <div class="u-sec-right" style="display:flex;align-items:center;gap:6px;">
+          ${devBadgeHtml}
           ${agBadgeHtml}
         </div>
       </div>
@@ -650,9 +824,9 @@ function renderTableView(remaining) {
       const usage = item.usage || { status: "active", status_label: "使用中", duration_text: "使用中" };
       const hMeta = getHealthMeta(item.health_status || "可用");
       const agMeta = getAntigravityMeta(item.antigravity_tier || "无");
+      const devMeta = getDeviceMeta(item.device_tag || "主机");
       const isPwdModified = !!item.password_modified;
       const is2faModified = !!item.twofa_modified;
-      const metaLeft = getUnifiedMetaSummary(item);
       const fpInfo = getFpSummary(item);
       const nodePillText = fpInfo.proxyNode
         ? `${fpInfo.locked ? "🔒" : "🔓"} ${fpInfo.proxyNode}`
@@ -660,7 +834,7 @@ function renderTableView(remaining) {
 
       const healthBadgeHtml = `
         <div class="u-health-dropdown" data-acc-id="${item.id}">
-          <button class="u-health-btn health-${hMeta.key}" onclick="toggleHealthMenu(event, ${item.id})" title="点击快捷维护账号可用状态">
+          <button class="u-health-btn health-${hMeta.key}" onclick="toggleHealthMenu(event, ${item.id})" title="快捷维护可用状态">
             <span class="badge-dot ${hMeta.dotClass}"></span>
             <span class="health-btn-label">${escapeHtml(hMeta.label)}</span>
             <span class="health-arrow">▾</span>
@@ -689,93 +863,130 @@ function renderTableView(remaining) {
         </div>
       `;
 
+      const agBadgeTableHtml = `
+        <div class="u-ag-dropdown" data-acc-id="${item.id}">
+          <button class="u-ag-btn ag-${agMeta.key}" onclick="toggleAntigravityMenu(event, ${item.id})" title="快捷维护 Antigravity 标记">
+            <span class="badge-dot ${agMeta.dotClass}"></span>
+            <span class="ag-btn-label">${escapeHtml(agMeta.badgeText)}</span>
+            <span class="health-arrow">▾</span>
+          </button>
+          <div class="u-ag-popover" id="ag-menu-${item.id}" style="display: none;">
+            <div class="popover-title">Antigravity 标记</div>
+            <button class="ag-opt opt-none ${agMeta.key === 'none' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '无')">
+              <span class="badge-dot dot-ag-none"></span><span>无</span>
+            </button>
+            <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色Pro')">
+              <span class="badge-dot dot-ag-blue"></span><span>💎 Pro</span>
+            </button>
+            <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色Pro')">
+              <span class="badge-dot dot-ag-gold"></span><span>👑 Pro</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      const devBadgeTableHtml = `
+        <div class="u-device-dropdown" data-acc-id="${item.id}">
+          <button class="u-device-btn dev-${devMeta.key}" onclick="toggleDeviceMenu(event, ${item.id})" title="快捷维护设备标记">
+            <span>${devMeta.icon}</span>
+            <span>${escapeHtml(devMeta.label)}</span>
+            <span class="health-arrow">▾</span>
+          </button>
+          <div class="u-device-popover" id="dev-menu-${item.id}" style="display: none;">
+            <div class="popover-title">标记设备</div>
+            <button class="device-opt ${devMeta.label === '主机' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, '主机')">
+              <span>🖥️</span><span>主机</span>
+            </button>
+            <button class="device-opt ${devMeta.label === 'iPhone' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, 'iPhone')">
+              <span>📱</span><span>iPhone</span>
+            </button>
+            <button class="device-opt ${devMeta.label === 'Pad' ? 'active' : ''}" onclick="onQuickSelectDevice(${item.id}, 'Pad')">
+              <span>📱</span><span>Pad</span>
+            </button>
+          </div>
+        </div>
+      `;
+
       const deviceChipHtml = item.note
-        ? `<span class="u-device-chip" title="所在设备/备注: ${escapeHtml(item.note)}">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+        ? `<span class="u-device-chip tb-device-chip" title="所在设备/备注: ${escapeHtml(item.note)}">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
               <line x1="8" y1="21" x2="16" y2="21"></line>
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
             <span class="device-text">${escapeHtml(item.note)}</span>
           </span>`
-        : `<span style="color:var(--text-muted);">-</span>`;
-
-      const agBadgeTableHtml = `
-        <div class="u-ag-dropdown" data-acc-id="${item.id}" style="margin-top:4px;">
-          <button class="u-ag-btn ag-${agMeta.key}" onclick="toggleAntigravityMenu(event, ${item.id})" title="点击切换 Antigravity 选项标记">
-            <span class="badge-dot ${agMeta.dotClass}"></span>
-            <span class="ag-btn-label">${escapeHtml(agMeta.badgeText)}</span>
-            <span class="health-arrow">▾</span>
-          </button>
-          <div class="u-ag-popover" id="ag-menu-${item.id}" style="display: none;">
-            <div class="popover-title">Antigravity 选项标记</div>
-            <button class="ag-opt opt-none ${agMeta.key === 'none' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '无')">
-              <span class="badge-dot dot-ag-none"></span><span>无</span>
-            </button>
-            <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色背景色Pro')">
-              <span class="badge-dot dot-ag-blue"></span><span>💎 蓝色背景色Pro</span>
-            </button>
-            <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色背景色Pro')">
-              <span class="badge-dot dot-ag-gold"></span><span>👑 金色背景色Pro</span>
-            </button>
-          </div>
-        </div>
-      `;
+        : "";
 
       return `
         <tr class="ag-row-${agMeta.key}">
-          <td style="color: var(--text-muted);">${idx + 1}</td>
-          <td><span class="u-platform ${escapeHtml(item.account_type)}">${escapeHtml(item.account_type)}</span></td>
           <td>
-            <span class="u-fp-badge" title="${escapeHtml(fpInfo.tooltip)}">${escapeHtml(fpInfo.code)}</span>
-            <button class="u-node-pill ${fpInfo.locked ? "locked" : ""}" onclick="openNodeModal(${item.id})" style="margin-left:4px;">
-              ${escapeHtml(nodePillText)}
-            </button>
+            <div class="tb-col-platform">
+              <span class="tb-idx">${idx + 1}</span>
+              <span class="u-platform ${escapeHtml(item.account_type)}">${escapeHtml(item.account_type)}</span>
+            </div>
           </td>
           <td>
-            <span class="u-email" onclick="copyFieldValue(null, ${item.id}, 'account', '账号')">${escapeHtml(displayAcc)}</span>
-            <button class="u-peek-btn" onclick="toggleReveal(${item.id}, 'account')">${showAcc ? "隐" : "明"}</button>
+            <div class="tb-col-account">
+              <div class="tb-acc-row1">
+                <span class="u-fp-badge" title="${escapeHtml(fpInfo.tooltip)}">${escapeHtml(fpInfo.code)}</span>
+                <span class="u-email" onclick="copyFieldValue(null, ${item.id}, 'account', '账号')" title="${escapeHtml(item.account)}">${escapeHtml(displayAcc)}</span>
+                <button class="u-peek-btn" onclick="toggleReveal(${item.id}, 'account')">${showAcc ? "隐" : "明"}</button>
+              </div>
+              <div class="tb-acc-row2">
+                <button class="u-node-pill ${fpInfo.locked ? "locked" : ""}" onclick="openNodeModal(${item.id})" title="${escapeHtml(fpInfo.proxyNode || '直连')}">
+                  ${escapeHtml(nodePillText)}
+                </button>
+                ${deviceChipHtml}
+              </div>
+            </div>
           </td>
           <td>
-            <div style="display:flex;flex-direction:column;align-items:flex-start;">
+            <div class="tb-col-status">
+              ${devBadgeTableHtml}
               ${healthBadgeHtml}
-              ${agBadgeTableHtml}
             </div>
           </td>
           <td>
-            <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
-              <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="点击切换密码是否已修改标记">
-                ${isPwdModified ? "🔑 密码已改 ✓" : "🔑 初始密码"}
-              </button>
-              ${
-                item.secret_key
-                  ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})" title="点击切换 2FA 是否已修改标记">
-                      ${is2faModified ? "🛡️ 2FA已改 ✓" : "🛡️ 初始2FA"}
-                    </button>`
-                  : `<span class="u-2fa-flag none">🛡️ 无2FA</span>`
-              }
+            <div class="tb-col-security">
+              <div class="tb-sec-flags">
+                <button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="密码修改状态">
+                  ${isPwdModified ? "🔑 改✓" : "🔑 初始"}
+                </button>
+                ${
+                  item.secret_key
+                    ? `<button class="u-2fa-flag ${is2faModified ? "modified" : "unmodified"}" onclick="toggleCardTwofaModified(${item.id}, ${is2faModified ? 0 : 1})" title="2FA修改状态">
+                        ${is2faModified ? "🛡️ 改✓" : "🛡️ 初始"}
+                      </button>`
+                    : `<span class="u-2fa-flag none">🛡️ 无2FA</span>`
+                }
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                ${agBadgeTableHtml}
+                <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
+              </div>
             </div>
           </td>
           <td>
-            <span class="u-usage-badge ${usage.status}">${escapeHtml(usage.duration_text)}</span>
+            <div class="tb-col-totp">
+              <span class="u-totp-code" id="totp-code-${item.id}" onclick="copyTotpCode(null, ${item.id})" title="点击复制动态码">${totpFormatted}</span>
+              ${hasTotp ? `<span class="u-totp-sec"><span class="card-rem-sec">${remaining}</span>s</span>` : ""}
+            </div>
           </td>
           <td>
-            <span class="u-totp-code" id="totp-code-${item.id}" style="font-size:14px;cursor:pointer;" onclick="copyTotpCode(null, ${item.id})">${totpFormatted}</span>
-            ${hasTotp ? `<span class="u-totp-sec">(<span class="card-rem-sec">${remaining}</span>s)</span>` : ""}
-          </td>
-          <td>${deviceChipHtml}</td>
-          <td>
-            <div class="u-copy-group">
+            <div class="u-copy-group tb-copy-group">
               <button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'account', '账号')">账号</button>
               <button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'password', '密码')">密码</button>
               ${item.secret_key ? `<button class="copy-btn" onclick="copyFieldValue(this, ${item.id}, 'secret_key', '2FA秘钥')">2FA</button>` : ""}
-              <button class="btn-browser" onclick="onClickLaunchBrowser(${item.id}, this)">🌐 启动浏览器</button>
             </div>
           </td>
           <td>
-            <div class="u-card-tools">
-              <button class="tool-link" onclick="openEditModal(${item.id})">编辑</button>
-              <button class="tool-link danger" onclick="confirmDeleteAccount(${item.id})">删除</button>
+            <div class="tb-col-actions">
+              <button class="btn-browser tb-btn-browser" onclick="onClickLaunchBrowser(${item.id}, this)" title="${escapeHtml(fpInfo.tooltip)}">🌐 启动</button>
+              <div class="u-card-tools tb-tools">
+                <button class="tool-link" onclick="openEditModal(${item.id})">编辑</button>
+                <button class="tool-link danger" onclick="confirmDeleteAccount(${item.id})">删除</button>
+              </div>
             </div>
           </td>
         </tr>
@@ -787,17 +998,13 @@ function renderTableView(remaining) {
     <table class="u-table">
       <thead>
         <tr>
-          <th>#</th>
-          <th>平台</th>
-          <th>指纹与锁定节点</th>
-          <th>账号邮箱</th>
-          <th>可用状态</th>
-          <th>安全修改状态</th>
-          <th>使用时长</th>
-          <th>动态验证码</th>
-          <th>所在设备 / 备注</th>
-          <th>快捷操作与防关联浏览器</th>
-          <th>操作</th>
+          <th style="width: 9%; min-width: 72px;"># 平台</th>
+          <th style="width: 27%; min-width: 195px;">账号 / 指纹节点</th>
+          <th style="width: 13%; min-width: 100px;">设备 / 状态</th>
+          <th style="width: 16%; min-width: 120px;">安全 / Pro</th>
+          <th style="width: 11%; min-width: 80px;">2FA动态码</th>
+          <th style="width: 11%; min-width: 85px;">快捷复制</th>
+          <th style="width: 13%; min-width: 110px;">启动 / 操作</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1370,6 +1577,7 @@ function openAddModal() {
   resetFormFields();
   setRadioHealth("可用");
   setRadioAntigravity("无");
+  setRadioDevice("主机");
   document.getElementById("account-modal").style.display = "flex";
   setTimeout(() => document.getElementById("smart-paste-input").focus(), 60);
 }
@@ -1387,6 +1595,7 @@ function openEditModal(accountId) {
   setRadioType(item.account_type || "ChatGPT");
   setRadioHealth(item.health_status || "可用");
   setRadioAntigravity(item.antigravity_tier || "无");
+  setRadioDevice(item.device_tag || "主机");
   document.getElementById("field-password-modified").checked = !!item.password_modified;
   document.getElementById("field-twofa-modified").checked = !!item.twofa_modified;
   document.getElementById("field-account").value = item.account || "";
@@ -1430,7 +1639,9 @@ function getRadioHealth() {
 }
 
 function setRadioAntigravity(tier) {
-  const targetVal = tier || "无";
+  let targetVal = tier || "无";
+  if (targetVal === "蓝色背景色Pro" || targetVal === "蓝Pro") targetVal = "蓝色Pro";
+  if (targetVal === "金色背景色Pro" || targetVal === "金Pro") targetVal = "金色Pro";
   const radio = document.querySelector(`input[name="antigravity_tier"][value="${targetVal}"]`);
   if (radio) radio.checked = true;
 }
@@ -1440,11 +1651,23 @@ function getRadioAntigravity() {
   return checked ? checked.value : "无";
 }
 
+function setRadioDevice(device) {
+  const targetVal = device || "主机";
+  const radio = document.querySelector(`input[name="device_tag"][value="${targetVal}"]`);
+  if (radio) radio.checked = true;
+}
+
+function getRadioDevice() {
+  const checked = document.querySelector('input[name="device_tag"]:checked');
+  return checked ? checked.value : "主机";
+}
+
 function resetFormFields() {
   document.getElementById("field-id").value = "";
   setRadioType("ChatGPT");
   setRadioHealth("可用");
   setRadioAntigravity("无");
+  setRadioDevice("主机");
   document.getElementById("field-password-modified").checked = false;
   document.getElementById("field-twofa-modified").checked = false;
   document.getElementById("field-account").value = "";
@@ -1627,6 +1850,7 @@ async function submitAccountForm(e) {
     account_type: getRadioType(),
     health_status: getRadioHealth(),
     antigravity_tier: getRadioAntigravity(),
+    device_tag: getRadioDevice(),
     password_modified: document.getElementById("field-password-modified").checked ? 1 : 0,
     twofa_modified: document.getElementById("field-twofa-modified").checked ? 1 : 0,
     account: document.getElementById("field-account").value.trim(),
@@ -1721,4 +1945,226 @@ function showToast(msg) {
   setTimeout(() => {
     toast.remove();
   }, 2200);
+}
+
+// ============================================================
+// SYSTEM SETTINGS & DICTIONARY MAINTENANCE CONTROLLERS
+// ============================================================
+function openSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  if (!modal) return;
+  modal.style.display = "flex";
+  switchSettingsTab("general");
+
+  const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
+  const devDicts = (state.dicts || []).filter((d) => d.dict_type === "device_tag");
+  const selPlat = document.getElementById("set-default-account-type");
+  if (selPlat) {
+    selPlat.innerHTML = typeDicts
+      .map((d) => `<option value="${escapeHtml(d.dict_key)}">${escapeHtml(d.dict_label || d.dict_key)}</option>`)
+      .join("");
+  }
+  const selDev = document.getElementById("set-default-device-tag");
+  if (selDev) {
+    selDev.innerHTML = devDicts
+      .map((d) => `<option value="${escapeHtml(d.dict_key)}">${escapeHtml(d.dict_label || d.dict_key)}</option>`)
+      .join("");
+  }
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function switchSettingsTab(tabName) {
+  state.currentDictTab = tabName;
+  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-tab") === tabName);
+  });
+
+  const paneGeneral = document.getElementById("pane-general");
+  const paneDicts = document.getElementById("pane-dicts");
+
+  if (tabName === "general") {
+    if (paneGeneral) paneGeneral.style.display = "block";
+    if (paneDicts) paneDicts.style.display = "none";
+  } else {
+    if (paneGeneral) paneGeneral.style.display = "none";
+    if (paneDicts) paneDicts.style.display = "block";
+    const dictType = tabName.replace("dict-", "");
+    renderDictPane(dictType);
+  }
+}
+
+function renderDictPane(dictType) {
+  const titles = {
+    account_type: "🤖 账号类型字典表",
+    device_tag: "📱 设备标记字典表",
+    health_status: "🟢 可用状态字典表",
+    antigravity_tier: "💎 Pro 选项字典表",
+  };
+  const subs = {
+    account_type: "配置支持的账号平台（如 ChatGPT, Google, WorkBuddy, Qcoder 等）",
+    device_tag: "配置设备标签（如 主机, iPhone, Pad, MacBook 等）",
+    health_status: "配置账号可用性状态（如 可用, 封号, 人机, 短信, 验证 等）",
+    antigravity_tier: "配置 Antigravity 选项（无, 蓝色Pro, 金色Pro 等）",
+  };
+
+  const titleEl = document.getElementById("dict-pane-title");
+  const subEl = document.getElementById("dict-pane-sub");
+  if (titleEl) titleEl.textContent = titles[dictType] || "字典表维护";
+  if (subEl) subEl.textContent = subs[dictType] || "支持添加与安全维护";
+
+  const tbody = document.getElementById("dict-table-body");
+  if (!tbody) return;
+
+  const items = (state.dicts || []).filter((d) => d.dict_type === dictType);
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">暂无该类型字典数据</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items
+    .map(
+      (item) => `
+    <tr>
+      <td><strong>${escapeHtml(item.dict_key)}</strong></td>
+      <td>
+        <span class="dict-badge">
+          ${item.icon ? `<span>${item.icon}</span>` : ""}
+          <span>${escapeHtml(item.dict_label || item.dict_key)}</span>
+        </span>
+      </td>
+      <td>${item.sort_order}</td>
+      <td>${item.is_default ? '<span style="color:var(--color-chatgpt);font-weight:700;">✓ 默认</span>' : '-'}</td>
+      <td>
+        <div class="dict-ops">
+          <button class="tool-link" onclick="openEditDictModal(${item.id})">编辑</button>
+          ${
+            item.is_system
+              ? '<span style="color:var(--text-muted);font-size:11px;" title="内置项不可删除">内置保护</span>'
+              : `<button class="tool-link danger" onclick="confirmDeleteDict(${item.id})">删除</button>`
+          }
+        </div>
+      </td>
+    </tr>
+  `
+    )
+    .join("");
+}
+
+function openAddDictModal() {
+  state.editingDictId = null;
+  const modal = document.getElementById("dict-edit-modal");
+  const form = document.getElementById("dict-edit-form");
+  const title = document.getElementById("dict-modal-title");
+  if (!modal || !form) return;
+
+  form.reset();
+  const dictType = state.currentDictTab.replace("dict-", "");
+  document.getElementById("dict-field-id").value = "";
+  document.getElementById("dict-field-type").value = dictType;
+  if (title) title.textContent = "添加字典项";
+  modal.style.display = "flex";
+}
+
+function openEditDictModal(dictId) {
+  state.editingDictId = dictId;
+  const item = (state.dicts || []).find((d) => d.id === dictId);
+  if (!item) return;
+
+  const modal = document.getElementById("dict-edit-modal");
+  const title = document.getElementById("dict-modal-title");
+  if (!modal) return;
+
+  document.getElementById("dict-field-id").value = item.id;
+  document.getElementById("dict-field-type").value = item.dict_type;
+  document.getElementById("dict-field-key").value = item.dict_key;
+  document.getElementById("dict-field-key").readOnly = !!item.is_system;
+  document.getElementById("dict-field-label").value = item.dict_label || item.dict_key;
+  document.getElementById("dict-field-sort").value = item.sort_order || 0;
+  document.getElementById("dict-field-default").checked = !!item.is_default;
+
+  if (title) title.textContent = `编辑「${item.dict_label || item.dict_key}」`;
+  modal.style.display = "flex";
+}
+
+function closeDictEditModal() {
+  const modal = document.getElementById("dict-edit-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function submitDictForm(event) {
+  event.preventDefault();
+  const idVal = document.getElementById("dict-field-id").value;
+  const dict_type = document.getElementById("dict-field-type").value;
+  const dict_key = document.getElementById("dict-field-key").value.trim();
+  const dict_label = document.getElementById("dict-field-label").value.trim();
+  const sort_order = parseInt(document.getElementById("dict-field-sort").value, 10) || 0;
+  const is_default = document.getElementById("dict-field-default").checked ? 1 : 0;
+
+  const payload = {
+    dict_type,
+    dict_key,
+    dict_label,
+    dict_value: dict_key,
+    sort_order,
+    is_default,
+  };
+  if (idVal) payload.id = parseInt(idVal, 10);
+
+  try {
+    const res = await callApi("save_system_dict", payload);
+    if (res && res.ok) {
+      showToast("✓ 字典项已保存");
+      closeDictEditModal();
+      await loadDashboard();
+      renderDictPane(dict_type);
+    } else {
+      showToast(res.error || "保存字典项失败");
+    }
+  } catch (err) {
+    showToast("保存异常: " + err.message);
+  }
+}
+
+async function confirmDeleteDict(dictId) {
+  const item = (state.dicts || []).find((d) => d.id === dictId);
+  const name = item ? item.dict_label || item.dict_key : "该字典项";
+  if (!confirm(`确定要删除字典项「${name}」吗？`)) return;
+
+  try {
+    const res = await callApi("delete_system_dict", dictId);
+    if (res && res.ok) {
+      showToast("✓ 字典项已删除");
+      await loadDashboard();
+      if (item) renderDictPane(item.dict_type);
+    } else {
+      showToast(res.error || "删除失败");
+    }
+  } catch (err) {
+    showToast("删除异常: " + err.message);
+  }
+}
+
+async function saveGeneralSettings() {
+  const viewMode = document.getElementById("set-default-view")?.value || "compact";
+  const totpInterval = parseInt(document.getElementById("set-totp-interval")?.value, 10) || 30;
+  const defPlat = document.getElementById("set-default-account-type")?.value || "ChatGPT";
+  const defDev = document.getElementById("set-default-device-tag")?.value || "主机";
+
+  try {
+    await callApi("save_settings", {
+      view_mode: viewMode,
+      totp_interval: totpInterval,
+      default_account_type: defPlat,
+      default_device_tag: defDev,
+    });
+    showToast("✓ 系统常用设置已保存");
+    applyViewMode(viewMode, true);
+    closeSettingsModal();
+  } catch (err) {
+    showToast("保存设置失败: " + err.message);
+  }
 }

@@ -1059,38 +1059,45 @@ body {
 }
 
 /* ============================================================
-   TABLE LIST MODE (表格列表视图)
+   TABLE LIST MODE (表格列表视图 · 彻底消除横向滚动条，合理比例分布)
    ============================================================ */
 .accounts-table-wrapper {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
+  overflow: hidden;
   box-shadow: var(--shadow-card);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .u-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 12px;
   text-align: left;
 }
 
 .u-table th {
-  padding: 10px 12px;
+  padding: 9px 8px;
   background: var(--bg-subtle);
   color: var(--text-muted);
   font-weight: 600;
   font-size: 11.5px;
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .u-table td {
-  padding: 9px 12px;
+  padding: 8px 8px;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
-  white-space: nowrap;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .u-table tr:last-child td {
@@ -1099,6 +1106,156 @@ body {
 
 .u-table tr:hover td {
   background: var(--bg-surface-hover);
+}
+
+/* Table Column Responsive Inner Layouts */
+.tb-col-platform {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tb-idx {
+  font-family: "Cascadia Mono", monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 16px;
+}
+
+.tb-col-account {
+  display: flex;
+  flex-direction: column;
+  gap: 3.5px;
+  min-width: 0;
+}
+
+.tb-acc-row1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tb-acc-row1 .u-email {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tb-acc-row2 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tb-acc-row2 .u-node-pill {
+  padding: 1px 6px;
+  font-size: 10.5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-device-chip {
+  padding: 1px 6px;
+  font-size: 10.5px;
+  max-width: 130px;
+}
+
+.tb-col-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.tb-col-status .u-health-btn,
+.tb-col-status .u-ag-btn,
+.tb-col-status .u-device-btn {
+  padding: 1.5px 7px;
+  font-size: 10.5px;
+}
+
+.tb-col-security {
+  display: flex;
+  flex-direction: column;
+  gap: 3.5px;
+  align-items: flex-start;
+}
+
+.tb-sec-flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tb-sec-flags .u-2fa-flag {
+  padding: 1.5px 6px;
+  font-size: 10.5px;
+}
+
+.tb-col-security .u-usage-badge {
+  padding: 1px 6px;
+  font-size: 10.5px;
+}
+
+.tb-col-totp {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.tb-col-totp .u-totp-code {
+  font-family: "Cascadia Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-totp);
+  cursor: pointer;
+}
+
+.tb-copy-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.tb-copy-group .copy-btn {
+  padding: 2.5px 6px;
+  font-size: 10.5px;
+}
+
+.tb-col-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.tb-btn-browser {
+  padding: 3px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.tb-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tb-tools .tool-link {
+  font-size: 11px;
 }
 
 /* Empty state */
@@ -2114,11 +2271,17 @@ body {
   filter: brightness(1.08);
 }
 
-/* 1. 无 (Default Neutral) */
+/* 1. 无 (默认友好浅灰色配色) */
 .u-ag-btn.ag-none {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border-color: var(--border-color);
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+[data-theme="light"] .u-ag-btn.ag-none {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 /* 2. 蓝色背景色Pro (Friendly Blue Pro Theme) */
@@ -2243,6 +2406,37 @@ body {
 }
 
 /* Homepage Card & Table Row Friendly Background Color Themes */
+/* 默认浅灰色背景卡片 (Antigravity: 无) */
+.u-card.ag-card-none,
+.u-card {
+  background: linear-gradient(145deg, #1b222d 0%, #141923 55%, var(--bg-surface) 100%);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.u-card.ag-card-none:hover,
+.u-card:hover {
+  border-color: rgba(148, 163, 184, 0.42);
+}
+
+[data-theme="light"] .u-card.ag-card-none,
+[data-theme="light"] .u-card {
+  background: linear-gradient(145deg, #f8fafc 0%, #edf2f7 55%, #f1f5f9 100%);
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .u-card.ag-card-none:hover,
+[data-theme="light"] .u-card:hover {
+  border-color: #94a3b8;
+}
+
+/* 默认浅灰色表格行 (Antigravity: 无) */
+.u-table tbody tr.ag-row-none {
+  background: rgba(148, 163, 184, 0.04);
+}
+
+[data-theme="light"] .u-table tbody tr.ag-row-none {
+  background: #f8fafc;
+}
 .u-card.ag-card-blue {
   background: linear-gradient(145deg, rgba(30, 64, 175, 0.24) 0%, rgba(14, 165, 233, 0.08) 48%, var(--bg-surface) 100%);
   border-color: rgba(56, 189, 248, 0.38);
@@ -2341,4 +2535,274 @@ body {
   border-color: #f59e0b;
   background: #fef3c7;
   color: #b45309;
+}
+
+/* ============================================================
+   TOPBAR PLATFORM SELECT PILL & SETTINGS BUTTON
+   ============================================================ */
+.stat-select-pill {
+  padding: 2px 10px 2px 8px !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.dot-platform {
+  background: var(--accent-primary);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.6);
+}
+
+.topbar-select {
+  background: transparent;
+  color: inherit;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.topbar-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+#btn-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s ease;
+}
+
+#btn-settings:hover {
+  transform: rotate(35deg);
+  color: var(--accent-primary);
+}
+
+/* ============================================================
+   SYSTEM SETTINGS MODAL & DICTIONARY MAINTENANCE
+   ============================================================ */
+.modal.modal-lg {
+  max-width: 680px;
+  width: 92%;
+  max-height: 88vh;
+}
+
+.settings-tabs-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+
+.settings-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.settings-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.settings-tab-btn.active {
+  color: var(--accent-primary);
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.settings-section {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.settings-section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.settings-section-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.settings-info-box p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 5px 0;
+  line-height: 1.5;
+}
+
+.dict-pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.dict-table-wrapper {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.dict-table th {
+  background: var(--bg-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.dict-table td {
+  font-size: 12px;
+  padding: 7px 10px;
+  vertical-align: middle;
+}
+
+.dict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+}
+
+.dict-ops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ============================================================
+   DEVICE TAG BADGE & 1-CLICK QUICK POPOVER (主机 / iPhone / Pad)
+   ============================================================ */
+.u-device-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.u-device-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.u-device-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  transform: translateY(-0.5px);
+}
+
+.u-device-btn.dev-host {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+}
+
+.u-device-btn.dev-iphone {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #c084fc;
+}
+
+.u-device-btn.dev-pad {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.35);
+  color: #2dd4bf;
+}
+
+.u-device-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 180;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
+  padding: 6px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: popoverFadeIn 0.12s ease-out;
+}
+
+.device-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.device-opt:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.device-opt.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* Custom platform badges styling for WorkBuddy / Qcoder */
+.u-platform.WorkBuddy {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
+.u-platform.Qcoder {
+  background: rgba(236, 72, 153, 0.18);
+  border-color: rgba(236, 72, 153, 0.4);
+  color: #f472b6;
 }
