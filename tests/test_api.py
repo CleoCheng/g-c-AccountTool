@@ -190,3 +190,68 @@ def test_api_dict_and_device_management(tmp_path: Path):
 
     del_res = api.delete_system_dict(d_id)
     assert del_res["ok"] is True
+
+
+def test_attribute_api(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    api = AccountApi(data_dir=data_dir)
+
+    # 1. get_attributes returns system seeded items
+    res = api.get_attributes()
+    assert res["ok"] is True
+    attrs = res["data"]
+    assert len(attrs) >= 3
+    keys = {a["attr_key"]: a for a in attrs}
+    assert "health_status" in keys
+    assert "device_tag" in keys
+    assert "antigravity_tier" in keys
+
+    # 2. save_attribute for custom attribute
+    save_res = api.save_attribute({
+        "attr_key": "region_zone",
+        "attr_label": "可用区",
+        "attr_type": "text",
+        "bound_platforms": ["Google", "WorkBuddy"],
+        "sort_order": 60,
+    })
+    assert save_res["ok"] is True
+    attr_id = save_res["attribute"]["id"]
+    assert save_res["attribute"]["attr_key"] == "region_zone"
+
+    # Cannot rename system attribute key
+    sys_attr = keys["health_status"]
+    fail_res = api.save_attribute({
+        "id": sys_attr["id"],
+        "attr_key": "health_status_renamed",
+        "attr_label": "新名称",
+    })
+    assert fail_res["ok"] is False
+    assert "不能修改" in fail_res["error"]
+
+    # 3. update_attribute_bindings
+    bind_res = api.update_attribute_bindings(attr_id, ["Google"])
+    assert bind_res["ok"] is True
+    assert "Google" in str(bind_res["attribute"]["bound_platforms"])
+
+    # 4. delete_attribute protection
+    del_sys = api.delete_attribute(sys_attr["id"])
+    assert del_sys["ok"] is False
+    assert "系统内置" in del_sys["error"]
+
+    del_custom = api.delete_attribute(attr_id)
+    assert del_custom["ok"] is True
+
+    # 5. dashboard payload has attributes
+    dash = api.get_dashboard()
+    assert "attributes" in dash
+    assert len(dash["attributes"]) >= 3
+
+    # 6. save_account supports custom_fields
+    acc_res = api.save_account({
+        "account_type": "Google",
+        "account": "custom_prop@gmail.com",
+        "password": "Password123",
+        "custom_fields": {"backup_phone": "+123456789"},
+    })
+    assert acc_res["ok"] is True
+    assert acc_res["account"]["custom_fields"].get("backup_phone") == "+123456789"

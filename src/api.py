@@ -63,12 +63,14 @@ class AccountApi:
         stats = self.db.get_stats()
         settings = self._ensure_settings()
         dicts = self.db.list_system_dicts()
+        attributes = self.db.list_attributes()
         now = int(time.time())
         return {
             "accounts": accounts,
             "stats": stats,
             "settings": settings,
             "dicts": dicts,
+            "attributes": attributes,
             "server_time": now,
             "remaining": 30 - (now % 30),
         }
@@ -195,6 +197,18 @@ class AccountApi:
 
     def delete_system_dict(self, dict_id: int) -> dict:
         return self.db.delete_system_dict(int(dict_id))
+
+    def get_attributes(self) -> dict:
+        return {"ok": True, "data": self.db.list_attributes()}
+
+    def save_attribute(self, data: dict) -> dict:
+        return self.db.save_attribute(data)
+
+    def delete_attribute(self, attr_id: int) -> dict:
+        return self.db.delete_attribute(int(attr_id))
+
+    def update_attribute_bindings(self, attr_id: int, bound_platforms) -> dict:
+        return self.db.update_attribute_bindings(int(attr_id), bound_platforms)
 
     def launch_browser(self, account_id: int) -> dict:
         import importlib
