@@ -396,6 +396,12 @@ body.light-theme .brand-logo {
   flex-shrink: 0;
 }
 
+.dynamic-filters-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
 /* Health Filter Select (Second-level Native Reliable Dropdown) */
 .health-select-wrap {
   position: relative;

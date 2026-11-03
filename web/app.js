@@ -4,6 +4,7 @@ const state = {
   stats: { total: 0, google: 0, chatgpt: 0, types: {}, devices: {}, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} },
   dicts: [],
   attributes: [],
+  customFilters: {}, // attr_key -> value
   editingAttrId: null,
   filterType: "All",
   statusFilter: "All",
@@ -143,8 +144,26 @@ function syncTopBarPills() {
   if (pillUnavail) pillUnavail.classList.toggle("active", state.healthFilter === "不可用");
 }
 
+function isAttributeApplicable(attr, platform) {
+  if (!attr) return false;
+  const bound = attr.bound_platforms || "All";
+  if (platform === "All") {
+    return bound === "All";
+  }
+  if (bound === "All") return true;
+  let list = Array.isArray(attr.platforms_list) ? attr.platforms_list : [];
+  if (list.length === 0) {
+    try {
+      list = typeof bound === "string" ? JSON.parse(bound) : bound;
+    } catch (e) {
+      list = [bound];
+    }
+  }
+  return list.includes(platform);
+}
+
 function renderFilterDropdowns() {
-  // 1. Platform Filter
+  // 1. Platform Filter (in toolbar)
   const platSel = document.getElementById("platform-filter-select");
   if (platSel) {
     const typeDicts = (state.dicts || []).filter((d) => d.dict_type === "account_type");
@@ -161,51 +180,93 @@ function renderFilterDropdowns() {
     }
     platSel.innerHTML = html;
     platSel.value = state.filterType || "All";
+    syncCustomSelect(platSel);
   }
 
-  // 2. Health Filter
-  const healthSel = document.getElementById("health-filter-select");
-  if (healthSel) {
-    const healthDicts = (state.dicts || []).filter((d) => d.dict_type === "health_status");
-    if (healthDicts.length > 0) {
-      let html = `<option value="All">全部状态</option>`;
-      html += healthDicts
-        .map((d) => `<option value="${escapeHtml(d.dict_key)}">${d.icon || ""} ${escapeHtml(d.dict_label || d.dict_key)}</option>`)
-        .join("");
-      healthSel.innerHTML = html;
-      healthSel.value = state.healthFilter || "All";
+  // 2. Dynamic Attribute Filters Container
+  const container = document.getElementById("dynamic-filter-attributes-container");
+  if (!container) return;
+
+  const activePlatform = state.filterType || "All";
+  const allAttrs = state.attributes || [];
+
+  // Find attributes with is_filter != 0 and attr_type == 'select' applicable to activePlatform
+  const applicableAttrs = allAttrs.filter(
+    (a) => a.is_filter && a.attr_type === "select" && isAttributeApplicable(a, activePlatform)
+  );
+
+  // If built-in filters are hidden for activePlatform, reset their values
+  const applicableKeys = new Set(applicableAttrs.map((a) => a.attr_key));
+  if (!applicableKeys.has("health_status")) state.healthFilter = "All";
+  if (!applicableKeys.has("device_tag")) state.deviceFilter = "All";
+  if (!applicableKeys.has("antigravity_tier")) state.antigravityFilter = "All";
+
+  container.innerHTML = "";
+
+  applicableAttrs.forEach((attr) => {
+    const wrap = document.createElement("div");
+    wrap.className = "health-select-wrap";
+
+    const sel = document.createElement("select");
+    sel.id = `filter-${attr.attr_key}`;
+    sel.className = "health-filter-select";
+    if (attr.attr_key === "antigravity_tier") {
+      sel.classList.add("ag-filter-select");
     }
-  }
+    sel.title = `按${attr.attr_label}筛选`;
 
-  // 3. Device Filter
-  const devSel = document.getElementById("device-filter-select");
-  if (devSel) {
-    const devDicts = (state.dicts || []).filter((d) => d.dict_type === "device_tag");
-    let html = `<option value="All">全部设备</option>`;
-    if (devDicts.length > 0) {
-      html += devDicts
-        .map((d) => `<option value="${escapeHtml(d.dict_key)}">${d.icon || "📱"} ${escapeHtml(d.dict_label || d.dict_key)}</option>`)
-        .join("");
+    const defOpt = document.createElement("option");
+    defOpt.value = "All";
+    defOpt.textContent = `全部${attr.attr_label}`;
+    sel.appendChild(defOpt);
+
+    const dictItems = (state.dicts || []).filter((d) => d.dict_type === attr.dict_type);
+    dictItems.forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d.dict_key;
+      opt.textContent = `${d.icon ? `${d.icon} ` : ""}${d.dict_label || d.dict_key}`;
+      sel.appendChild(opt);
+    });
+
+    if (attr.attr_key === "health_status") {
+      sel.value = state.healthFilter || "All";
+      sel.onchange = (e) => onHealthSelectChange(e.target.value);
+    } else if (attr.attr_key === "antigravity_tier") {
+      sel.value = state.antigravityFilter || "All";
+      sel.onchange = (e) => onAntigravitySelectChange(e.target.value);
+    } else if (attr.attr_key === "device_tag") {
+      sel.value = state.deviceFilter || "All";
+      sel.onchange = (e) => setDeviceFilter(e.target.value);
     } else {
-      html += `
-        <option value="主机">🖥️ 主机</option>
-        <option value="iPhone">📱 iPhone</option>
-        <option value="Pad">📱 Pad</option>
-      `;
+      sel.value = state.customFilters?.[attr.attr_key] || "All";
+      sel.onchange = (e) => setCustomFilter(attr.attr_key, e.target.value);
     }
-    devSel.innerHTML = html;
-    devSel.value = state.deviceFilter || "All";
-  }
 
-  syncCustomSelect(platSel);
-  syncCustomSelect(healthSel);
-  syncCustomSelect(devSel);
-  syncCustomSelect(document.getElementById("ag-filter-select"));
+    wrap.appendChild(sel);
+    container.appendChild(wrap);
+
+    enhanceSelectToCustom(sel);
+
+    if (attr.attr_key === "antigravity_tier") {
+      syncAntigravitySelectStyle();
+    }
+  });
+}
+
+function setCustomFilter(attrKey, val) {
+  if (!state.customFilters) state.customFilters = {};
+  state.customFilters[attrKey] = val || "All";
+  const sel = document.getElementById(`filter-${attrKey}`);
+  if (sel && sel.value !== state.customFilters[attrKey]) {
+    sel.value = state.customFilters[attrKey];
+  }
+  syncCustomSelect(sel);
+  renderAccounts();
 }
 
 function setDeviceFilter(dev) {
   state.deviceFilter = dev || "All";
-  const sel = document.getElementById("device-filter-select");
+  const sel = document.getElementById("filter-device_tag") || document.getElementById("device-filter-select");
   if (sel && sel.value !== state.deviceFilter) {
     sel.value = state.deviceFilter;
   }
@@ -226,6 +287,7 @@ function setFilterType(type) {
   }
   syncCustomSelect(topSel);
   syncCustomSelect(platSel);
+  renderFilterDropdowns();
   syncTopBarPills();
   loadDashboard();
 }
@@ -236,7 +298,7 @@ function onHealthSelectChange(val) {
 
 function setHealthFilter(health) {
   state.healthFilter = health || "All";
-  const sel = document.getElementById("health-filter-select");
+  const sel = document.getElementById("filter-health_status") || document.getElementById("health-filter-select");
   if (sel && sel.value !== state.healthFilter) {
     sel.value = state.healthFilter;
   }
@@ -246,7 +308,7 @@ function setHealthFilter(health) {
 }
 
 function syncAntigravitySelectStyle() {
-  const sel = document.getElementById("ag-filter-select");
+  const sel = document.getElementById("filter-antigravity_tier") || document.getElementById("ag-filter-select");
   if (!sel) return;
   const targets = [sel];
   if (sel._customContainer) targets.push(sel._customContainer);
@@ -269,7 +331,7 @@ function onAntigravitySelectChange(val) {
 
 function setAntigravityFilter(tier) {
   state.antigravityFilter = tier || "All";
-  const sel = document.getElementById("ag-filter-select");
+  const sel = document.getElementById("filter-antigravity_tier") || document.getElementById("ag-filter-select");
   if (sel && sel.value !== state.antigravityFilter) {
     sel.value = state.antigravityFilter;
   }
@@ -496,7 +558,16 @@ function renderAccounts() {
   const container = document.getElementById("accounts-container");
   const emptyState = document.getElementById("empty-state");
 
-  if (!state.accounts || state.accounts.length === 0) {
+  let accountsToDisplay = state.accounts || [];
+  if (state.customFilters) {
+    Object.entries(state.customFilters).forEach(([k, v]) => {
+      if (v && v !== "All") {
+        accountsToDisplay = accountsToDisplay.filter((a) => a.custom_fields && a.custom_fields[k] === v);
+      }
+    });
+  }
+
+  if (!accountsToDisplay || accountsToDisplay.length === 0) {
     container.innerHTML = "";
     emptyState.style.display = "block";
     return;
@@ -507,12 +578,12 @@ function renderAccounts() {
 
   if (state.viewMode === "table") {
     container.className = "accounts-table-wrapper";
-    container.innerHTML = renderTableView(remaining);
+    container.innerHTML = renderTableView(remaining, accountsToDisplay);
     return;
   }
 
   container.className = "accounts-grid";
-  container.innerHTML = state.accounts
+  container.innerHTML = accountsToDisplay
     .map((item) => renderCardItem(item, remaining))
     .join("");
 }
@@ -839,8 +910,8 @@ function renderCardItem(item, remaining) {
   `;
 }
 
-function renderTableView(remaining) {
-  const rows = state.accounts
+function renderTableView(remaining, list = state.accounts) {
+  const rows = list
     .map((item, idx) => {
       const showAcc = isRevealed(item.id, "account");
       const displayAcc = showAcc ? item.account : item.masked_account;

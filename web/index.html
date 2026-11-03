@@ -113,38 +113,8 @@
             </select>
           </div>
 
-          <!-- 可用状态筛选下拉框（由字典表驱动） -->
-          <div class="health-select-wrap">
-            <select id="health-filter-select" class="health-filter-select" onchange="onHealthSelectChange(this.value)" title="选择账号状态进行筛选">
-              <option value="All">全部状态</option>
-              <option value="可用">🟢 可用</option>
-              <option value="不可用">⚪ 不可用</option>
-              <option value="封号">🔴 封号</option>
-              <option value="人机">🟠 人机</option>
-              <option value="短信">🟣 短信</option>
-              <option value="验证">🔵 验证</option>
-            </select>
-          </div>
-
-          <!-- Antigravity 选项标记筛选下拉框（联动浅灰/蓝/金友好配色） -->
-          <div class="health-select-wrap">
-            <select id="ag-filter-select" class="health-filter-select ag-filter-select" onchange="onAntigravitySelectChange(this.value)" title="按 Antigravity 选项标记筛选">
-              <option value="All">全部 Antigravity</option>
-              <option value="无">⚪ 无 (浅灰)</option>
-              <option value="蓝色Pro">💎 Pro (蓝)</option>
-              <option value="金色Pro">👑 Pro (金)</option>
-            </select>
-          </div>
-
-          <!-- 设备标记筛选下拉框（主机 / iPhone / Pad 由字典表驱动） -->
-          <div class="health-select-wrap">
-            <select id="device-filter-select" class="health-filter-select" onchange="setDeviceFilter(this.value)" title="按设备标记筛选">
-              <option value="All">全部设备</option>
-              <option value="主机">🖥️ 主机</option>
-              <option value="iPhone">📱 iPhone</option>
-              <option value="Pad">📱 Pad</option>
-            </select>
-          </div>
+          <!-- 动态属性筛选下拉容器 (由 account_attributes 及其平台绑定动态驱动) -->
+          <div id="dynamic-filter-attributes-container" class="dynamic-filters-wrap"></div>
         </div>
 
         <!-- Search Box (Flex 1) -->
