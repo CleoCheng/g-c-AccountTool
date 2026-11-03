@@ -547,112 +547,162 @@
   <!-- Toast Notification -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="app.js"></script>
   <!-- ============================================================
-       SYSTEM SETTINGS MODAL (系统设置与字典表维护)
+       SYSTEM SETTINGS MODAL (系统设置与字典表维护 · 高级现代玻璃质感卡片)
        ============================================================ -->
   <div class="modal-backdrop" id="settings-modal" style="display: none;">
-    <div class="modal modal-lg">
-      <div class="modal-header">
+    <div class="modal-card modal-settings">
+      <div class="modal-header settings-header">
         <div class="modal-title-wrap">
-          <h2 class="modal-title">⚙️ 系统设置与字典表维护</h2>
-          <p class="modal-sub">维护系统常用参数及账号类型、设备标记、可用状态、Pro 选项字典表</p>
+          <div class="settings-title-row">
+            <span class="settings-header-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </span>
+            <h2 class="modal-title">系统设置与字典表维护</h2>
+          </div>
+          <p class="modal-subtitle">统一管理常用参数及账号类型、设备标记、可用状态、Pro 标记字典</p>
         </div>
-        <button class="modal-close" onclick="closeSettingsModal()">×</button>
+        <button class="modal-close" onclick="closeSettingsModal()" title="关闭设置">×</button>
       </div>
 
-      <div class="modal-body" style="padding-top: 10px;">
-        <!-- Settings Tabs -->
-        <div class="settings-tabs-nav">
-          <button class="settings-tab-btn active" data-tab="general" onclick="switchSettingsTab('general')">
-            ⚙️ 常用设置
-          </button>
-          <button class="settings-tab-btn" data-tab="dict-account_type" onclick="switchSettingsTab('dict-account_type')">
-            🤖 账号类型
-          </button>
-          <button class="settings-tab-btn" data-tab="dict-device_tag" onclick="switchSettingsTab('dict-device_tag')">
-            📱 设备标记
-          </button>
-          <button class="settings-tab-btn" data-tab="dict-health_status" onclick="switchSettingsTab('dict-health_status')">
-            🟢 可用状态
-          </button>
-          <button class="settings-tab-btn" data-tab="dict-antigravity_tier" onclick="switchSettingsTab('dict-antigravity_tier')">
-            💎 Pro 选项
-          </button>
+      <div class="modal-body settings-modal-body">
+        <!-- Floating Pill Tabs Navigation -->
+        <div class="settings-nav-wrapper">
+          <div class="settings-tabs-nav">
+            <button class="settings-tab-btn active" data-tab="general" onclick="switchSettingsTab('general')">
+              <span class="tab-emoji">⚙️</span><span>常用设置</span>
+            </button>
+            <button class="settings-tab-btn" data-tab="dict-account_type" onclick="switchSettingsTab('dict-account_type')">
+              <span class="tab-emoji">🤖</span><span>账号类型</span>
+            </button>
+            <button class="settings-tab-btn" data-tab="dict-device_tag" onclick="switchSettingsTab('dict-device_tag')">
+              <span class="tab-emoji">📱</span><span>设备标记</span>
+            </button>
+            <button class="settings-tab-btn" data-tab="dict-health_status" onclick="switchSettingsTab('dict-health_status')">
+              <span class="tab-emoji">🟢</span><span>可用状态</span>
+            </button>
+            <button class="settings-tab-btn" data-tab="dict-antigravity_tier" onclick="switchSettingsTab('dict-antigravity_tier')">
+              <span class="tab-emoji">💎</span><span>Pro 选项</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Tab 1: General Settings -->
+        <!-- Tab 1: General Settings Pane -->
         <div class="settings-tab-pane active" id="pane-general">
           <div class="settings-section">
-            <h3 class="settings-section-title">界面与操作习惯</h3>
+            <div class="settings-section-head">
+              <span class="sec-dot dot-blue"></span>
+              <h3 class="settings-section-title">界面与操作习惯</h3>
+            </div>
             <div class="form-grid-2">
               <div class="form-group">
                 <label for="set-default-view">默认首页视图模式</label>
-                <select id="set-default-view" class="form-control">
-                  <option value="compact">简约卡片 (紧凑单行)</option>
-                  <option value="full">完整卡片 (展开详情)</option>
-                  <option value="table">列表表格 (无滚动条响应式表格)</option>
-                </select>
+                <div class="settings-select-wrap">
+                  <select id="set-default-view" class="settings-select">
+                    <option value="compact">简约卡片 (紧凑单行)</option>
+                    <option value="full">完整卡片 (展开详情)</option>
+                    <option value="table">列表表格 (无滚动条响应式表格)</option>
+                  </select>
+                </div>
               </div>
               <div class="form-group">
                 <label for="set-totp-interval">TOTP 动态验证码刷新周期</label>
-                <select id="set-totp-interval" class="form-control">
-                  <option value="30">标准 30 秒 (推荐)</option>
-                  <option value="60">60 秒</option>
-                </select>
+                <div class="settings-select-wrap">
+                  <select id="set-totp-interval" class="settings-select">
+                    <option value="30">标准 30 秒 (推荐)</option>
+                    <option value="60">60 秒</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <div class="form-grid-2" style="margin-top: 12px;">
+            <div class="form-grid-2" style="margin-top: 14px;">
               <div class="form-group">
                 <label for="set-default-account-type">新建账号默认平台</label>
-                <select id="set-default-account-type" class="form-control">
-                  <!-- dynamic -->
-                </select>
+                <div class="settings-select-wrap">
+                  <select id="set-default-account-type" class="settings-select">
+                    <!-- dynamic -->
+                  </select>
+                </div>
               </div>
               <div class="form-group">
                 <label for="set-default-device-tag">新建账号默认设备标记</label>
-                <select id="set-default-device-tag" class="form-control">
-                  <!-- dynamic -->
-                </select>
+                <div class="settings-select-wrap">
+                  <select id="set-default-device-tag" class="settings-select">
+                    <!-- dynamic -->
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="settings-section" style="margin-top: 14px;">
-            <h3 class="settings-section-title">本地存储与安全</h3>
-            <div class="settings-info-box">
-              <p>🗄️ <strong>数据库模式</strong>: 本地 SQLite 3 (WAL 并发读写增强)</p>
-              <p>🛡️ <strong>隐私保障</strong>: 账号、密码与 2FA 秘钥纯本地运行，不上传任何第三方云端</p>
-              <p>🌐 <strong>防关联浏览器</strong>: 每次启动独立指纹隔离容器，保护账号资产安全</p>
+            <div class="settings-section-head">
+              <span class="sec-dot dot-green"></span>
+              <h3 class="settings-section-title">本地存储与数据安全</h3>
+            </div>
+            <div class="security-card-grid">
+              <div class="sec-mini-card">
+                <span class="sec-mini-icon">🗄️</span>
+                <div class="sec-mini-text">
+                  <strong>SQLite 3 高速引擎</strong>
+                  <span>WAL 并发无锁读写，秒级落盘</span>
+                </div>
+              </div>
+              <div class="sec-mini-card">
+                <span class="sec-mini-icon">🛡️</span>
+                <div class="sec-mini-text">
+                  <strong>100% 隐私本地驻留</strong>
+                  <span>密码与 2FA 纯本地加密，绝不上云</span>
+                </div>
+              </div>
+              <div class="sec-mini-card">
+                <span class="sec-mini-icon">🌐</span>
+                <div class="sec-mini-text">
+                  <strong>独立指纹沙箱容器</strong>
+                  <span>防关联硬件隔离，保障账号资产</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="modal-footer" style="padding: 16px 0 0; justify-content: flex-end;">
-            <button type="button" class="btn btn-primary" onclick="saveGeneralSettings()">保存常用设置</button>
+          <div class="settings-footer">
+            <button type="button" class="btn btn-primary btn-save-settings" onclick="saveGeneralSettings()">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>保存常用设置</span>
+            </button>
           </div>
         </div>
 
-        <!-- Tab 2: Dictionaries Pane (Shared layout driven by JS) -->
+        <!-- Tab 2: Dictionaries Maintenance Pane -->
         <div class="settings-tab-pane" id="pane-dicts" style="display: none;">
           <div class="dict-pane-header">
             <div>
-              <h3 class="settings-section-title" id="dict-pane-title">字典表维护</h3>
-              <p class="settings-section-sub" id="dict-pane-sub">支持添加、修改名称、排序与安全删除</p>
+              <h3 class="dict-view-title" id="dict-pane-title">字典表维护</h3>
+              <p class="dict-view-sub" id="dict-pane-sub">支持添加、修改名称、排序与安全删除</p>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" onclick="openAddDictModal()">
-              + 添加新项
+            <button type="button" class="btn btn-primary btn-add-dict" onclick="openAddDictModal()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>添加字典项</span>
             </button>
           </div>
 
-          <div class="dict-table-wrapper">
+          <div class="dict-table-card">
             <table class="u-table dict-table">
               <thead>
                 <tr>
-                  <th style="width: 22%;">标识 / 编码</th>
+                  <th style="width: 24%;">标识 / 编码</th>
                   <th style="width: 28%;">显示名称</th>
                   <th style="width: 14%;">排序</th>
                   <th style="width: 14%;">默认</th>
-                  <th style="width: 22%;">操作</th>
+                  <th style="width: 20%;">操作</th>
                 </tr>
               </thead>
               <tbody id="dict-table-body">
@@ -667,7 +717,7 @@
 
   <!-- Dict Item Add / Edit Sub-Modal -->
   <div class="modal-backdrop" id="dict-edit-modal" style="display: none; z-index: 1050;">
-    <div class="modal" style="max-width: 440px;">
+    <div class="modal-card modal-sm modal-dict-card">
       <div class="modal-header">
         <h3 class="modal-title" id="dict-modal-title">添加字典项</h3>
         <button class="modal-close" onclick="closeDictEditModal()">×</button>
@@ -678,27 +728,27 @@
         <div class="modal-body">
           <div class="form-group" style="margin-bottom: 12px;">
             <label for="dict-field-key">标识键 / 编码值 <span class="req">*</span></label>
-            <input type="text" id="dict-field-key" required placeholder="例如: WorkBuddy / MacBook" />
+            <input type="text" id="dict-field-key" class="settings-input" required placeholder="例如: WorkBuddy / MacBook" />
           </div>
           <div class="form-group" style="margin-bottom: 12px;">
             <label for="dict-field-label">显示名称 / 标签 <span class="req">*</span></label>
-            <input type="text" id="dict-field-label" required placeholder="例如: WorkBuddy / MacBook" />
+            <input type="text" id="dict-field-label" class="settings-input" required placeholder="例如: WorkBuddy / MacBook" />
           </div>
           <div class="form-grid-2" style="margin-bottom: 12px;">
             <div class="form-group">
               <label for="dict-field-sort">显示排序</label>
-              <input type="number" id="dict-field-sort" value="10" />
+              <input type="number" id="dict-field-sort" class="settings-input" value="10" />
             </div>
             <div class="form-group" style="display:flex; flex-direction:column; justify-content:center;">
               <label class="switch-row" style="margin-top: 14px;">
                 <input type="checkbox" id="dict-field-default" />
                 <span class="switch-slider"></span>
-                <span class="switch-text">设为默认</span>
+                <span class="switch-text">设为默认选中</span>
               </label>
             </div>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="padding-top: 12px;">
           <button type="button" class="btn btn-secondary" onclick="closeDictEditModal()">取消</button>
           <button type="submit" class="btn btn-primary">保存字典项</button>
         </div>
@@ -706,5 +756,6 @@
     </div>
   </div>
 
+  <script src="app.js"></script>
 </body>
 </html>
