@@ -42,14 +42,17 @@ class AccountApi:
         search: str = "",
         status: str = "All",
         health_status: str = "All",
+        antigravity_tier: str = "All",
     ) -> dict:
         status_filter = "" if status in ("", "All") else status
         health_filter = "" if health_status in ("", "All") else health_status
+        ag_filter = "" if antigravity_tier in ("", "All") else antigravity_tier
         accounts = self.db.list_accounts(
             account_type=account_type,
             search=search,
             status=status_filter,
             health_status=health_filter,
+            antigravity_tier=ag_filter,
         )
         stats = self.db.get_stats()
         settings = self._ensure_settings()
@@ -160,6 +163,12 @@ class AccountApi:
 
     def set_health_status(self, account_id: int, health_status: str) -> dict:
         updated = self.db.set_health_status(int(account_id), health_status)
+        if not updated:
+            return {"ok": False, "error": "账号不存在"}
+        return {"ok": True, "account": updated}
+
+    def set_antigravity_tier(self, account_id: int, antigravity_tier: str) -> dict:
+        updated = self.db.set_antigravity_tier(int(account_id), antigravity_tier)
         if not updated:
             return {"ok": False, "error": "账号不存在"}
         return {"ok": True, "account": updated}

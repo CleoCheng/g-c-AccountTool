@@ -5,6 +5,7 @@ const state = {
   filterType: "All",
   statusFilter: "All",
   healthFilter: "All",
+  antigravityFilter: "All",
   searchQuery: "",
   theme: "dark",
   viewMode: "compact", // 'compact' | 'full' | 'table'
@@ -46,9 +47,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadDashboard() {
   try {
-    const data = await callApi("get_dashboard", state.filterType, state.searchQuery, state.statusFilter, state.healthFilter);
+    const data = await callApi(
+      "get_dashboard",
+      state.filterType,
+      state.searchQuery,
+      state.statusFilter,
+      state.healthFilter,
+      state.antigravityFilter
+    );
     state.accounts = data.accounts || [];
-    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {} };
+    state.stats = data.stats || { total: 0, google: 0, chatgpt: 0, other: 0, active: 0, deactivated: 0, available: 0, unavailable: 0, health: {}, antigravity: {} };
     if (data.settings) {
       applyTheme(data.settings.theme || "dark", false);
       const savedMode = data.settings.view_mode === "grid" ? "compact" : data.settings.view_mode || "compact";
@@ -56,6 +64,7 @@ async function loadDashboard() {
     }
     renderStats();
     syncTopBarPills();
+    syncAntigravitySelectStyle();
     renderAccounts();
   } catch (err) {
     console.error("Load dashboard failed:", err);
@@ -78,7 +87,10 @@ function renderStats() {
 }
 
 function syncTopBarPills() {
-  const isTotal = (state.filterType === "All" || !state.filterType) && (state.healthFilter === "All" || !state.healthFilter);
+  const isTotal =
+    (state.filterType === "All" || !state.filterType) &&
+    (state.healthFilter === "All" || !state.healthFilter) &&
+    (state.antigravityFilter === "All" || !state.antigravityFilter);
   const pillTotal = document.getElementById("stat-pill-total");
   const pillGpt = document.getElementById("stat-pill-chatgpt");
   const pillGgl = document.getElementById("stat-pill-google");
@@ -106,6 +118,34 @@ function setHealthFilter(health) {
   loadDashboard();
 }
 
+function syncAntigravitySelectStyle() {
+  const sel = document.getElementById("ag-filter-select");
+  if (!sel) return;
+  sel.classList.remove("ag-select-blue", "ag-select-gold", "ag-select-none");
+  if (state.antigravityFilter === "蓝色背景色Pro") {
+    sel.classList.add("ag-select-blue");
+  } else if (state.antigravityFilter === "金色背景色Pro") {
+    sel.classList.add("ag-select-gold");
+  } else if (state.antigravityFilter === "无") {
+    sel.classList.add("ag-select-none");
+  }
+}
+
+function onAntigravitySelectChange(val) {
+  setAntigravityFilter(val);
+}
+
+function setAntigravityFilter(tier) {
+  state.antigravityFilter = tier || "All";
+  const sel = document.getElementById("ag-filter-select");
+  if (sel && sel.value !== state.antigravityFilter) {
+    sel.value = state.antigravityFilter;
+  }
+  syncAntigravitySelectStyle();
+  syncTopBarPills();
+  loadDashboard();
+}
+
 function getHealthMeta(status) {
   switch (status) {
     case "封号":
@@ -124,6 +164,33 @@ function getHealthMeta(status) {
   }
 }
 
+function getAntigravityMeta(tier) {
+  switch (tier) {
+    case "蓝色背景色Pro":
+      return {
+        key: "blue",
+        label: "蓝色背景色Pro",
+        badgeText: "💎 蓝色背景色Pro",
+        dotClass: "dot-ag-blue",
+      };
+    case "金色背景色Pro":
+      return {
+        key: "gold",
+        label: "金色背景色Pro",
+        badgeText: "👑 金色背景色Pro",
+        dotClass: "dot-ag-gold",
+      };
+    case "无":
+    default:
+      return {
+        key: "none",
+        label: "无",
+        badgeText: "Antigravity: 无",
+        dotClass: "dot-ag-none",
+      };
+  }
+}
+
 function toggleHealthMenu(event, accountId) {
   event.stopPropagation();
   const menuEl = document.getElementById(`health-menu-${accountId}`);
@@ -135,8 +202,19 @@ function toggleHealthMenu(event, accountId) {
   }
 }
 
+function toggleAntigravityMenu(event, accountId) {
+  event.stopPropagation();
+  const menuEl = document.getElementById(`ag-menu-${accountId}`);
+  if (!menuEl) return;
+  const isShown = menuEl.style.display === "block";
+  closeAllHealthPopovers();
+  if (!isShown) {
+    menuEl.style.display = "block";
+  }
+}
+
 function closeAllHealthPopovers() {
-  document.querySelectorAll(".u-health-popover").forEach((el) => {
+  document.querySelectorAll(".u-health-popover, .u-ag-popover").forEach((el) => {
     el.style.display = "none";
   });
 }
@@ -157,6 +235,21 @@ async function onQuickSelectHealth(accountId, nextStatus) {
     }
   } catch (err) {
     showToast("状态更新异常: " + err.message);
+  }
+}
+
+async function onQuickSelectAntigravity(accountId, nextTier) {
+  closeAllHealthPopovers();
+  try {
+    const res = await callApi("set_antigravity_tier", accountId, nextTier);
+    if (res && res.ok) {
+      showToast(`✓ 已标记 Antigravity 为「${nextTier}」`);
+      await loadDashboard();
+    } else {
+      showToast(res.error || "Antigravity 标记更新失败");
+    }
+  } catch (err) {
+    showToast("Antigravity 标记更新异常: " + err.message);
   }
 }
 
@@ -266,6 +359,7 @@ function renderCardItem(item, remaining) {
       : usage.status_label;
 
   const hMeta = getHealthMeta(item.health_status || "可用");
+  const agMeta = getAntigravityMeta(item.antigravity_tier || "无");
 
   const isPwdModified = !!item.password_modified;
   const pwdFlagHtml = `<button class="u-2fa-flag ${isPwdModified ? "modified" : "unmodified"}" onclick="toggleCardPasswordModified(${item.id}, ${isPwdModified ? 0 : 1})" title="点击切换密码是否已修改标记">
@@ -286,6 +380,29 @@ function renderCardItem(item, remaining) {
 
   const metaLeft = getUnifiedMetaSummary(item);
   const showDrawer = state.viewMode === "full" || !!state.expandedCards[item.id];
+
+  // 1-Click Quick Antigravity Option Marker Dropdown
+  const agBadgeHtml = `
+    <div class="u-ag-dropdown" data-acc-id="${item.id}">
+      <button class="u-ag-btn ag-${agMeta.key}" onclick="toggleAntigravityMenu(event, ${item.id})" title="点击切换 Antigravity 选项标记">
+        <span class="badge-dot ${agMeta.dotClass}"></span>
+        <span class="ag-btn-label">${escapeHtml(agMeta.badgeText)}</span>
+        <span class="health-arrow">▾</span>
+      </button>
+      <div class="u-ag-popover" id="ag-menu-${item.id}" style="display: none;">
+        <div class="popover-title">Antigravity 选项标记</div>
+        <button class="ag-opt opt-none ${agMeta.key === 'none' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '无')">
+          <span class="badge-dot dot-ag-none"></span><span>无 (默认未标记)</span>
+        </button>
+        <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色背景色Pro')">
+          <span class="badge-dot dot-ag-blue"></span><span>💎 蓝色背景色Pro</span>
+        </button>
+        <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色背景色Pro')">
+          <span class="badge-dot dot-ag-gold"></span><span>👑 金色背景色Pro</span>
+        </button>
+      </div>
+    </div>
+  `;
 
   // 1-Click Quick Health Status Dropdown
   const healthBadgeHtml = `
@@ -337,6 +454,16 @@ function renderCardItem(item, remaining) {
           </span>
           <div class="detail-ops">
             <button class="u-peek-btn" onclick="openEditModal(${item.id})">在表单维护</button>
+          </div>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Antigravity</span>
+          <span class="detail-val" style="display:inline-flex;align-items:center;gap:6px;">
+            <span class="badge-dot ${agMeta.dotClass}"></span>
+            <strong>${escapeHtml(agMeta.label)}</strong>
+          </span>
+          <div class="detail-ops">
+            <button class="u-peek-btn" onclick="openEditModal(${item.id})">修改标记</button>
           </div>
         </div>
         <div class="detail-row">
@@ -418,7 +545,7 @@ function renderCardItem(item, remaining) {
     : "";
 
   return `
-    <article class="u-card health-border-${hMeta.key} ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
+    <article class="u-card health-border-${hMeta.key} ag-card-${agMeta.key} ${isDeactivated ? "is-deactivated" : ""}" data-id="${item.id}">
       <!-- Line 1: Header (Account Identity & 1-Click Health Status Badge) -->
       <div class="u-row-top">
         <div class="u-identity">
@@ -437,7 +564,7 @@ function renderCardItem(item, remaining) {
         </div>
       </div>
 
-      <!-- Line 2: Security Flags Row (初始密码是否改、2FA是否改独立换行展示) -->
+      <!-- Line 2: Security Flags & Antigravity Option Marker Row -->
       <div class="u-sec-row">
         <div class="u-sec-left">
           <span class="u-sec-label">安全状态:</span>
@@ -445,7 +572,7 @@ function renderCardItem(item, remaining) {
           ${twofaFlagHtml}
         </div>
         <div class="u-sec-right">
-          <span class="u-sec-hint" title="可点击对应徽章快速切换已改/初始标记">点击徽章可标记</span>
+          ${agBadgeHtml}
         </div>
       </div>
 
@@ -522,6 +649,7 @@ function renderTableView(remaining) {
       const totpFormatted = hasTotp ? formatTotpCode(item.totp.code) : "-";
       const usage = item.usage || { status: "active", status_label: "使用中", duration_text: "使用中" };
       const hMeta = getHealthMeta(item.health_status || "可用");
+      const agMeta = getAntigravityMeta(item.antigravity_tier || "无");
       const isPwdModified = !!item.password_modified;
       const is2faModified = !!item.twofa_modified;
       const metaLeft = getUnifiedMetaSummary(item);
@@ -572,8 +700,30 @@ function renderTableView(remaining) {
           </span>`
         : `<span style="color:var(--text-muted);">-</span>`;
 
+      const agBadgeTableHtml = `
+        <div class="u-ag-dropdown" data-acc-id="${item.id}" style="margin-top:4px;">
+          <button class="u-ag-btn ag-${agMeta.key}" onclick="toggleAntigravityMenu(event, ${item.id})" title="点击切换 Antigravity 选项标记">
+            <span class="badge-dot ${agMeta.dotClass}"></span>
+            <span class="ag-btn-label">${escapeHtml(agMeta.badgeText)}</span>
+            <span class="health-arrow">▾</span>
+          </button>
+          <div class="u-ag-popover" id="ag-menu-${item.id}" style="display: none;">
+            <div class="popover-title">Antigravity 选项标记</div>
+            <button class="ag-opt opt-none ${agMeta.key === 'none' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '无')">
+              <span class="badge-dot dot-ag-none"></span><span>无</span>
+            </button>
+            <button class="ag-opt opt-blue ${agMeta.key === 'blue' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '蓝色背景色Pro')">
+              <span class="badge-dot dot-ag-blue"></span><span>💎 蓝色背景色Pro</span>
+            </button>
+            <button class="ag-opt opt-gold ${agMeta.key === 'gold' ? 'active' : ''}" onclick="onQuickSelectAntigravity(${item.id}, '金色背景色Pro')">
+              <span class="badge-dot dot-ag-gold"></span><span>👑 金色背景色Pro</span>
+            </button>
+          </div>
+        </div>
+      `;
+
       return `
-        <tr>
+        <tr class="ag-row-${agMeta.key}">
           <td style="color: var(--text-muted);">${idx + 1}</td>
           <td><span class="u-platform ${escapeHtml(item.account_type)}">${escapeHtml(item.account_type)}</span></td>
           <td>
@@ -587,7 +737,10 @@ function renderTableView(remaining) {
             <button class="u-peek-btn" onclick="toggleReveal(${item.id}, 'account')">${showAcc ? "隐" : "明"}</button>
           </td>
           <td>
-            ${healthBadgeHtml}
+            <div style="display:flex;flex-direction:column;align-items:flex-start;">
+              ${healthBadgeHtml}
+              ${agBadgeTableHtml}
+            </div>
           </td>
           <td>
             <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
@@ -1216,6 +1369,7 @@ function openAddModal() {
   resetFeedbackText();
   resetFormFields();
   setRadioHealth("可用");
+  setRadioAntigravity("无");
   document.getElementById("account-modal").style.display = "flex";
   setTimeout(() => document.getElementById("smart-paste-input").focus(), 60);
 }
@@ -1232,6 +1386,7 @@ function openEditModal(accountId) {
   document.getElementById("field-id").value = item.id;
   setRadioType(item.account_type || "ChatGPT");
   setRadioHealth(item.health_status || "可用");
+  setRadioAntigravity(item.antigravity_tier || "无");
   document.getElementById("field-password-modified").checked = !!item.password_modified;
   document.getElementById("field-twofa-modified").checked = !!item.twofa_modified;
   document.getElementById("field-account").value = item.account || "";
@@ -1274,10 +1429,22 @@ function getRadioHealth() {
   return checked ? checked.value : "可用";
 }
 
+function setRadioAntigravity(tier) {
+  const targetVal = tier || "无";
+  const radio = document.querySelector(`input[name="antigravity_tier"][value="${targetVal}"]`);
+  if (radio) radio.checked = true;
+}
+
+function getRadioAntigravity() {
+  const checked = document.querySelector('input[name="antigravity_tier"]:checked');
+  return checked ? checked.value : "无";
+}
+
 function resetFormFields() {
   document.getElementById("field-id").value = "";
   setRadioType("ChatGPT");
   setRadioHealth("可用");
+  setRadioAntigravity("无");
   document.getElementById("field-password-modified").checked = false;
   document.getElementById("field-twofa-modified").checked = false;
   document.getElementById("field-account").value = "";
@@ -1459,6 +1626,7 @@ async function submitAccountForm(e) {
     id: document.getElementById("field-id").value || null,
     account_type: getRadioType(),
     health_status: getRadioHealth(),
+    antigravity_tier: getRadioAntigravity(),
     password_modified: document.getElementById("field-password-modified").checked ? 1 : 0,
     twofa_modified: document.getElementById("field-twofa-modified").checked ? 1 : 0,
     account: document.getElementById("field-account").value.trim(),

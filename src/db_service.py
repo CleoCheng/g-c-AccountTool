@@ -14,6 +14,7 @@ from src.totp_service import (
 
 
 VALID_HEALTH_STATUSES = ["可用", "不可用", "封号", "人机", "短信", "验证"]
+VALID_ANTIGRAVITY_TIERS = ["无", "蓝色背景色Pro", "金色背景色Pro"]
 
 
 def _parse_date(d_str: str) -> date | None:
@@ -79,6 +80,7 @@ class DatabaseService:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     account_type TEXT NOT NULL DEFAULT 'ChatGPT',
                     health_status TEXT NOT NULL DEFAULT '可用',
+                    antigravity_tier TEXT NOT NULL DEFAULT '无',
                     account TEXT NOT NULL,
                     password TEXT NOT NULL,
                     password_modified INTEGER DEFAULT 0,
@@ -102,6 +104,7 @@ class DatabaseService:
             }
             migrations = {
                 "health_status": "ALTER TABLE accounts ADD COLUMN health_status TEXT DEFAULT '可用'",
+                "antigravity_tier": "ALTER TABLE accounts ADD COLUMN antigravity_tier TEXT DEFAULT '无'",
                 "password_modified": "ALTER TABLE accounts ADD COLUMN password_modified INTEGER DEFAULT 0",
                 "initial_secret_key": "ALTER TABLE accounts ADD COLUMN initial_secret_key TEXT DEFAULT ''",
                 "twofa_modified": "ALTER TABLE accounts ADD COLUMN twofa_modified INTEGER DEFAULT 0",
@@ -115,6 +118,8 @@ class DatabaseService:
 
             # Ensure any null or empty health_status gets default '可用'
             conn.execute("UPDATE accounts SET health_status = '可用' WHERE health_status IS NULL OR health_status = ''")
+            # Ensure any null or empty antigravity_tier gets default '无'
+            conn.execute("UPDATE accounts SET antigravity_tier = '无' WHERE antigravity_tier IS NULL OR antigravity_tier = ''")
             # Deactivated accounts default to '不可用'
             conn.execute("UPDATE accounts SET health_status = '不可用' WHERE deactivated_date IS NOT NULL AND deactivated_date != '' AND health_status = '可用'")
 
@@ -147,6 +152,8 @@ class DatabaseService:
     def _enrich_row(self, row: sqlite3.Row) -> dict:
         item = dict(row)
         item["health_status"] = (item.get("health_status") or "可用").strip()
+        raw_ag = (item.get("antigravity_tier") or "无").strip()
+        item["antigravity_tier"] = raw_ag if raw_ag in VALID_ANTIGRAVITY_TIERS else "无"
         item["password_modified"] = int(item.get("password_modified") or 0)
         item["twofa_modified"] = int(item.get("twofa_modified") or 0)
         item["secret_key"] = normalize_secret(item.get("secret_key") or "")
@@ -180,6 +187,7 @@ class DatabaseService:
         search: str = "",
         status: str = "",
         health_status: str = "",
+        antigravity_tier: str = "",
     ) -> list[dict]:
         query = "SELECT * FROM accounts WHERE 1=1"
         params: list = []
@@ -198,13 +206,16 @@ class DatabaseService:
             else:
                 query += " AND health_status = ?"
                 params.append(health_status)
+        if antigravity_tier and antigravity_tier != "All":
+            query += " AND antigravity_tier = ?"
+            params.append(antigravity_tier)
         if search and search.strip():
             kw = f"%{search.strip()}%"
             query += (
                 " AND (account LIKE ? OR recovery_email LIKE ? OR reg_region LIKE ? "
-                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? OR health_status LIKE ?)"
+                "OR reg_year LIKE ? OR note LIKE ? OR purchase_date LIKE ? OR deactivated_date LIKE ? OR health_status LIKE ? OR antigravity_tier LIKE ?)"
             )
-            params.extend([kw, kw, kw, kw, kw, kw, kw, kw])
+            params.extend([kw, kw, kw, kw, kw, kw, kw, kw, kw])
         query += " ORDER BY id ASC"
 
         with self._connect() as conn:
@@ -221,6 +232,9 @@ class DatabaseService:
         health_status = (data.get("health_status") or "可用").strip()
         if health_status not in VALID_HEALTH_STATUSES:
             health_status = "可用"
+        antigravity_tier = (data.get("antigravity_tier") or "无").strip()
+        if antigravity_tier not in VALID_ANTIGRAVITY_TIERS:
+            antigravity_tier = "无"
         account = (data.get("account") or "").strip()
         password = (data.get("password") or "").strip()
         password_modified = 1 if data.get("password_modified") in (1, True, "1", "true") else 0
@@ -238,6 +252,7 @@ class DatabaseService:
         return (
             account_type,
             health_status,
+            antigravity_tier,
             account,
             password,
             password_modified,
@@ -259,15 +274,15 @@ class DatabaseService:
             cur = conn.execute(
                 """
                 INSERT INTO accounts (
-                    account_type, health_status, account, password, password_modified, recovery_email,
+                    account_type, health_status, antigravity_tier, account, password, password_modified, recovery_email,
                     secret_key, initial_secret_key, twofa_modified,
                     purchase_date, deactivated_date, reg_year, reg_region, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 fields,
             )
             new_id = cur.lastrowid
-            fp = generate_fingerprint_config(new_id, fields[2], proxy=proxy)
+            fp = generate_fingerprint_config(new_id, fields[3], proxy=proxy)
             conn.execute(
                 "UPDATE accounts SET fp_config_json = ? WHERE id = ?",
                 (json.dumps(fp, ensure_ascii=False), new_id),
@@ -286,10 +301,10 @@ class DatabaseService:
                 cur = conn.execute(
                     """
                     INSERT INTO accounts (
-                        account_type, account, password, password_modified, recovery_email,
+                        account_type, health_status, antigravity_tier, account, password, password_modified, recovery_email,
                         secret_key, initial_secret_key, twofa_modified,
                         purchase_date, deactivated_date, reg_year, reg_region, note
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     fields,
                 )
@@ -309,13 +324,15 @@ class DatabaseService:
         merged = dict(data)
         if "health_status" not in merged:
             merged["health_status"] = existing.get("health_status", "可用")
+        if "antigravity_tier" not in merged:
+            merged["antigravity_tier"] = existing.get("antigravity_tier", "无")
         if "password_modified" not in merged:
             if merged.get("password") and existing.get("password") and merged["password"].strip() != existing["password"]:
                 merged["password_modified"] = 1
             else:
                 merged["password_modified"] = existing.get("password_modified", 0)
         fields = self._prepare_fields(merged)
-        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[2])
+        fp_cfg = existing.get("fp_config") or generate_fingerprint_config(account_id, fields[3])
         if not fp_cfg.get("node_locked"):
             if "proxy" in data:
                 fp_cfg["proxy"] = (data.get("proxy") or "").strip()
@@ -328,6 +345,7 @@ class DatabaseService:
                 UPDATE accounts SET
                     account_type = ?,
                     health_status = ?,
+                    antigravity_tier = ?,
                     account = ?,
                     password = ?,
                     password_modified = ?,
@@ -449,6 +467,18 @@ class DatabaseService:
             row = conn.execute("SELECT * FROM accounts WHERE id = ?", (int(account_id),)).fetchone()
         return self._enrich_row(row) if row else None
 
+    def set_antigravity_tier(self, account_id: int, antigravity_tier: str) -> dict | None:
+        tier_val = (antigravity_tier or "无").strip()
+        if tier_val not in VALID_ANTIGRAVITY_TIERS:
+            tier_val = "无"
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE accounts SET antigravity_tier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (tier_val, int(account_id)),
+            )
+            row = conn.execute("SELECT * FROM accounts WHERE id = ?", (int(account_id),)).fetchone()
+        return self._enrich_row(row) if row else None
+
     def delete_account(self, account_id: int) -> bool:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
@@ -472,6 +502,10 @@ class DatabaseService:
                 else:
                     cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE health_status = ?", (hs,)).fetchone()[0]
                     health_counts[hs] = cnt
+            antigravity_counts = {}
+            for ag in VALID_ANTIGRAVITY_TIERS:
+                cnt = conn.execute("SELECT COUNT(*) FROM accounts WHERE antigravity_tier = ?", (ag,)).fetchone()[0]
+                antigravity_counts[ag] = cnt
         return {
             "total": total,
             "google": google,
@@ -482,6 +516,7 @@ class DatabaseService:
             "active": available,
             "deactivated": unavailable,
             "health": health_counts,
+            "antigravity": antigravity_counts,
         }
 
     def refresh_totp_codes(self) -> dict[int, dict]:

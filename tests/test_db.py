@@ -185,3 +185,59 @@ def test_account_health_status_and_filtering(tmp_path: Path):
     unavail_accounts = [a["account"] for a in unavail_filtered]
     assert "deactivated_acc@example.com" in unavail_accounts
     assert len(unavail_filtered) == 3
+
+
+def test_antigravity_tier_and_filtering(tmp_path: Path):
+    db_file = tmp_path / "data" / "accounts.db"
+    svc = DatabaseService(db_file)
+
+    # 1. Default antigravity_tier is '无'
+    a1 = svc.add_account({
+        "account_type": "Google",
+        "account": "free_user@gmail.com",
+        "password": "Password123!",
+    })
+    assert a1["antigravity_tier"] == "无"
+
+    # 2. Add with explicit antigravity_tier
+    a2 = svc.add_account({
+        "account_type": "Google",
+        "account": "blue_pro@gmail.com",
+        "password": "Password123!",
+        "antigravity_tier": "蓝色背景色Pro",
+    })
+    assert a2["antigravity_tier"] == "蓝色背景色Pro"
+
+    a3 = svc.add_account({
+        "account_type": "Google",
+        "account": "gold_pro@gmail.com",
+        "password": "Password123!",
+        "antigravity_tier": "金色背景色Pro",
+    })
+    assert a3["antigravity_tier"] == "金色背景色Pro"
+
+    # 3. Quick toggle via set_antigravity_tier
+    up1 = svc.set_antigravity_tier(a1["id"], "蓝色背景色Pro")
+    assert up1["antigravity_tier"] == "蓝色背景色Pro"
+
+    up1_back = svc.set_antigravity_tier(a1["id"], "无")
+    assert up1_back["antigravity_tier"] == "无"
+
+    # 4. Filter by antigravity_tier
+    blue_list = svc.list_accounts(antigravity_tier="蓝色背景色Pro")
+    assert len(blue_list) == 1
+    assert blue_list[0]["account"] == "blue_pro@gmail.com"
+
+    gold_list = svc.list_accounts(antigravity_tier="金色背景色Pro")
+    assert len(gold_list) == 1
+    assert gold_list[0]["account"] == "gold_pro@gmail.com"
+
+    none_list = svc.list_accounts(antigravity_tier="无")
+    assert len(none_list) == 1
+    assert none_list[0]["account"] == "free_user@gmail.com"
+
+    # 5. Stats breakdown
+    stats = svc.get_stats()
+    assert stats["antigravity"]["无"] == 1
+    assert stats["antigravity"]["蓝色背景色Pro"] == 1
+    assert stats["antigravity"]["金色背景色Pro"] == 1

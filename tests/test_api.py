@@ -121,3 +121,44 @@ def test_api_health_status_lifecycle_and_dashboard_filter(tmp_path: Path):
 
     dash_avail = api.get_dashboard(health_status="可用")
     assert len(dash_avail["accounts"]) == 0
+
+
+def test_api_antigravity_tier_lifecycle_and_dashboard_filter(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    api = AccountApi(data_dir=data_dir)
+
+    res1 = api.save_account({
+        "account_type": "Google",
+        "account": "ag_user1@gmail.com",
+        "password": "Password999",
+        "antigravity_tier": "蓝色背景色Pro",
+    })
+    assert res1["ok"] is True
+    acc_id = res1["account"]["id"]
+    assert res1["account"]["antigravity_tier"] == "蓝色背景色Pro"
+
+    # Switch to 金色背景色Pro via API
+    set_res = api.set_antigravity_tier(acc_id, "金色背景色Pro")
+    assert set_res["ok"] is True
+    assert set_res["account"]["antigravity_tier"] == "金色背景色Pro"
+
+    # Add another account with 蓝色背景色Pro
+    api.save_account({
+        "account_type": "Google",
+        "account": "ag_user2@gmail.com",
+        "password": "Password888",
+        "antigravity_tier": "蓝色背景色Pro",
+    })
+
+    dash_gold = api.get_dashboard(antigravity_tier="金色背景色Pro")
+    assert len(dash_gold["accounts"]) == 1
+    assert dash_gold["accounts"][0]["account"] == "ag_user1@gmail.com"
+
+    dash_blue = api.get_dashboard(antigravity_tier="蓝色背景色Pro")
+    assert len(dash_blue["accounts"]) == 1
+    assert dash_blue["accounts"][0]["account"] == "ag_user2@gmail.com"
+
+    dash_all = api.get_dashboard(antigravity_tier="All")
+    assert len(dash_all["accounts"]) == 2
+    assert dash_all["stats"]["antigravity"]["金色背景色Pro"] == 1
+    assert dash_all["stats"]["antigravity"]["蓝色背景色Pro"] == 1
