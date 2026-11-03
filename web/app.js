@@ -34,6 +34,7 @@ async function callApi(method, ...args) {
 }
 
 function initApp() {
+  initAllCustomSelects();
   loadDashboard();
   startZeroOverheadTotpTicker();
 }
@@ -43,6 +44,7 @@ window.addEventListener("pywebviewready", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAllCustomSelects();
   setTimeout(() => {
     if (window.pywebview && window.pywebview.api) {
       initApp();
@@ -67,6 +69,7 @@ async function loadDashboard() {
       state.dicts = data.dicts;
     }
     if (data.settings) {
+      state.settings = data.settings;
       applyTheme(data.settings.theme || "dark", false);
       const savedMode = data.settings.view_mode === "grid" ? "compact" : data.settings.view_mode || "compact";
       applyViewMode(savedMode, false);
@@ -114,6 +117,7 @@ function renderStats() {
     }
     topSel.innerHTML = optionsHtml;
     topSel.value = state.filterType || "All";
+    syncCustomSelect(topSel);
   }
 }
 
@@ -187,6 +191,11 @@ function renderFilterDropdowns() {
     devSel.innerHTML = html;
     devSel.value = state.deviceFilter || "All";
   }
+
+  syncCustomSelect(platSel);
+  syncCustomSelect(healthSel);
+  syncCustomSelect(devSel);
+  syncCustomSelect(document.getElementById("ag-filter-select"));
 }
 
 function setDeviceFilter(dev) {
@@ -195,6 +204,7 @@ function setDeviceFilter(dev) {
   if (sel && sel.value !== state.deviceFilter) {
     sel.value = state.deviceFilter;
   }
+  syncCustomSelect(sel);
   syncTopBarPills();
   loadDashboard();
 }
@@ -209,6 +219,8 @@ function setFilterType(type) {
   if (platSel && platSel.value !== state.filterType) {
     platSel.value = state.filterType;
   }
+  syncCustomSelect(topSel);
+  syncCustomSelect(platSel);
   syncTopBarPills();
   loadDashboard();
 }
@@ -223,6 +235,7 @@ function setHealthFilter(health) {
   if (sel && sel.value !== state.healthFilter) {
     sel.value = state.healthFilter;
   }
+  syncCustomSelect(sel);
   syncTopBarPills();
   loadDashboard();
 }
@@ -230,14 +243,19 @@ function setHealthFilter(health) {
 function syncAntigravitySelectStyle() {
   const sel = document.getElementById("ag-filter-select");
   if (!sel) return;
-  sel.classList.remove("ag-select-blue", "ag-select-gold", "ag-select-none");
-  if (state.antigravityFilter === "蓝色Pro" || state.antigravityFilter === "蓝色背景色Pro") {
-    sel.classList.add("ag-select-blue");
-  } else if (state.antigravityFilter === "金色Pro" || state.antigravityFilter === "金色背景色Pro") {
-    sel.classList.add("ag-select-gold");
-  } else if (state.antigravityFilter === "无") {
-    sel.classList.add("ag-select-none");
-  }
+  const targets = [sel];
+  if (sel._customContainer) targets.push(sel._customContainer);
+
+  targets.forEach((t) => {
+    t.classList.remove("ag-select-blue", "ag-select-gold", "ag-select-none");
+    if (state.antigravityFilter === "蓝色Pro" || state.antigravityFilter === "蓝色背景色Pro") {
+      t.classList.add("ag-select-blue");
+    } else if (state.antigravityFilter === "金色Pro" || state.antigravityFilter === "金色背景色Pro") {
+      t.classList.add("ag-select-gold");
+    } else if (state.antigravityFilter === "无") {
+      t.classList.add("ag-select-none");
+    }
+  });
 }
 
 function onAntigravitySelectChange(val) {
@@ -250,6 +268,7 @@ function setAntigravityFilter(tier) {
   if (sel && sel.value !== state.antigravityFilter) {
     sel.value = state.antigravityFilter;
   }
+  syncCustomSelect(sel);
   syncAntigravitySelectStyle();
   syncTopBarPills();
   loadDashboard();
@@ -350,6 +369,7 @@ function closeAllHealthPopovers() {
   document.querySelectorAll(".u-health-popover, .u-ag-popover, .u-device-popover").forEach((el) => {
     el.style.display = "none";
   });
+  closeAllCustomSelects();
 }
 
 async function onQuickSelectDevice(accountId, nextDevice) {
@@ -1144,6 +1164,7 @@ async function openNodeModal(accountId) {
       customInput.focus();
     }
   };
+  syncCustomSelect(portSelect);
 
   renderNodeModalLockState(item);
   renderNodeRegionTabs();
@@ -1970,6 +1991,22 @@ function openSettingsModal() {
       .map((d) => `<option value="${escapeHtml(d.dict_key)}">${escapeHtml(d.dict_label || d.dict_key)}</option>`)
       .join("");
   }
+
+  // Load saved general settings into fields
+  if (state.settings) {
+    const defView = document.getElementById("set-default-view");
+    if (defView && state.settings.view_mode) defView.value = state.settings.view_mode;
+    const defTotp = document.getElementById("set-totp-interval");
+    if (defTotp && state.settings.totp_interval) defTotp.value = String(state.settings.totp_interval);
+    if (selPlat && state.settings.default_account_type) selPlat.value = state.settings.default_account_type;
+    if (selDev && state.settings.default_device_tag) selDev.value = state.settings.default_device_tag;
+  }
+
+  // Sync custom selects
+  syncCustomSelect(document.getElementById("set-default-view"));
+  syncCustomSelect(document.getElementById("set-totp-interval"));
+  syncCustomSelect(selPlat);
+  syncCustomSelect(selDev);
 }
 
 function closeSettingsModal() {
@@ -2170,10 +2207,157 @@ async function saveGeneralSettings() {
 }
 
 // ============================================================
+
+// ============================================================
+// UNIVERSAL CUSTOM SELECT DROPDOWN SYSTEM
+// ============================================================
+function enhanceSelectToCustom(selectEl) {
+  if (!selectEl) return;
+  if (selectEl._customContainer) {
+    syncCustomSelect(selectEl);
+    return;
+  }
+
+  // Create wrapper container
+  const wrap = document.createElement("div");
+  wrap.className = "c-select-container " + (selectEl.className || "");
+  wrap.setAttribute("data-for-id", selectEl.id || "");
+
+  // Create trigger button
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "c-select-trigger";
+  trigger.innerHTML = `
+    <span class="c-select-label"></span>
+    <svg class="c-select-arrow" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  `;
+
+  // Create dropdown menu
+  const menu = document.createElement("div");
+  menu.className = "c-select-menu";
+
+  wrap.appendChild(trigger);
+  wrap.appendChild(menu);
+
+  // Insert before the select
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  selectEl.style.display = "none";
+  selectEl._customContainer = wrap;
+
+  // Toggle dropdown on trigger click
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = wrap.classList.contains("open");
+    closeAllCustomSelects();
+    closeAllHealthPopovers();
+    if (!isOpen) {
+      wrap.classList.add("open");
+      // Adjust positioning if menu exceeds viewport bottom
+      const rect = wrap.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight || 220;
+      if (rect.bottom + menuHeight > window.innerHeight && rect.top > menuHeight) {
+        wrap.classList.add("drop-up");
+      } else {
+        wrap.classList.remove("drop-up");
+      }
+    }
+  });
+
+  // Sync content initially
+  syncCustomSelect(selectEl);
+}
+
+function syncCustomSelect(selectEl) {
+  if (!selectEl) return;
+  if (!selectEl._customContainer) {
+    enhanceSelectToCustom(selectEl);
+    return;
+  }
+  const wrap = selectEl._customContainer;
+  const trigger = wrap.querySelector(".c-select-trigger");
+  const labelEl = trigger.querySelector(".c-select-label");
+  const menu = wrap.querySelector(".c-select-menu");
+
+  const selectedOpt = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+  const selectedVal = selectEl.value;
+
+  // Update label
+  if (selectedOpt) {
+    labelEl.textContent = selectedOpt.textContent;
+  } else {
+    labelEl.textContent = "";
+  }
+
+  // Populate options
+  menu.innerHTML = "";
+  Array.from(selectEl.options).forEach((opt) => {
+    const item = document.createElement("div");
+    item.className = "c-select-option" + (opt.value === selectedVal ? " active" : "");
+    item.setAttribute("data-value", opt.value);
+    item.innerHTML = `
+      <span class="c-option-text">${escapeHtml(opt.textContent)}</span>
+      ${opt.value === selectedVal ? '<span class="c-option-check">✓</span>' : ''}
+    `;
+
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectEl.value = opt.value;
+      wrap.classList.remove("open");
+      wrap.classList.remove("drop-up");
+      syncCustomSelect(selectEl);
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      if (typeof selectEl.onchange === "function") {
+        selectEl.onchange();
+      }
+    });
+
+    menu.appendChild(item);
+  });
+}
+
+function closeAllCustomSelects() {
+  document.querySelectorAll(".c-select-container.open").forEach((wrap) => {
+    wrap.classList.remove("open");
+    wrap.classList.remove("drop-up");
+  });
+}
+
+function initAllCustomSelects() {
+  document.querySelectorAll("select").forEach((sel) => {
+    enhanceSelectToCustom(sel);
+  });
+
+  // Clicking on stat-pill-platform-wrap should trigger the custom select
+  const pillWrap = document.getElementById("stat-pill-platform-wrap");
+  if (pillWrap && !pillWrap._hasCustomClickListener) {
+    pillWrap._hasCustomClickListener = true;
+    pillWrap.addEventListener("click", (e) => {
+      if (e.target.closest(".c-select-menu")) return;
+      const topSel = document.getElementById("topbar-platform-select");
+      if (topSel && topSel._customContainer) {
+        const trigger = topSel._customContainer.querySelector(".c-select-trigger");
+        if (trigger && !e.target.closest(".c-select-trigger")) {
+          trigger.click();
+        }
+      }
+    });
+  }
+}
+
+// Global click outside listener
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".c-select-container")) {
+    closeAllCustomSelects();
+  }
+});
+
 // GLOBAL KEYBOARD LISTENER (ESC to close any open modal)
 // ============================================================
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" || e.keyCode === 27) {
+    closeAllCustomSelects();
     const dictEditModal = document.getElementById("dict-edit-modal");
     if (dictEditModal && dictEditModal.style.display !== "none") {
       closeDictEditModal();
